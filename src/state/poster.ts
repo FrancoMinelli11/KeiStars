@@ -1,5 +1,5 @@
 import type { Dispatch, SetStateAction } from "react";
-import type { PosterThemeId, ProjectionKey } from "../lib/celestialConfig";
+import { DEFAULT_THEME_ID, type PosterThemeId, type ProjectionKey } from "../lib/celestialConfig";
 import { formatCoordinates, parseCoordinate } from "../lib/coordinates";
 import { estimateUtcOffsetMinutes, formatLongDateEs, toInputDate } from "../lib/time";
 
@@ -59,7 +59,7 @@ export function createDefaultPoster(): PosterState {
     longitude: DEFAULT_LOCATION.longitude,
     placeLabel: DEFAULT_LOCATION.label,
     projection: "stereographic",
-    theme: "night",
+    theme: DEFAULT_THEME_ID,
     flags: { lines: true, names: true, grid: false, milkyway: true },
     title: "La noche que nos conocimos",
     subtitle: formatLongDateEs(dateStr),

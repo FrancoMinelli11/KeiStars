@@ -120,14 +120,43 @@ No se pintan imágenes *cross-origin*, así que el lienzo nunca queda contaminad
 → `src/lib/posterLayout.ts`, `src/lib/posterRender.ts`, `src/lib/posterSizes.ts`,
 `src/lib/exportPoster.ts`, `src/lib/exportPosterPdf.ts`, `src/lib/celestialMap.ts`
 
-### 5. Datos desacoplados del motor
+### 5. Plantillas (presets) con un clic
+
+Cuatro estilos completos —papel, cielo, estrellas, líneas y tipografía— en
+`src/lib/celestialConfig.ts`:
+
+| Plantilla           | Papel            | Cielo / estrellas                       | Tipografía                            |
+| ------------------- | ---------------- | --------------------------------------- | ------------------------------------- |
+| **Midnight Blue**   | `#0b132b`        | `#1c2541`, blancas, líneas azul hielo   | Cinzel + Playfair Display + Inter     |
+| **Minimal Monochrome** | `#f8fafc`     | blanco, tinta `#0f172a`, trazo fino     | Inter con tracking + Space Mono       |
+| **Vintage Parchment**  | `#f4ebd0`     | `#ebdcb9`, sepia, doble aro de bronce   | Merriweather + Courier Prime          |
+| **Obsidian & Gold**    | `#09090b`     | `#121214`, doradas, versalitas anchas   | Cinzel 700 con kerning amplio         |
+
+Un solo objeto `PosterTheme` alimenta **a la vez**:
+
+- la configuración de d3-celestial (`background.fill`, `constellations.lineStyle.stroke`,
+  `stars.style`, `lines.graticule.stroke`, `mw.style.fill`…), aplicada con
+  `Celestial.apply()` → repintado inmediato, **sin recargar los GeoJSON** ni recrear el canvas;
+- los colores y la tipografía del lienzo de composición, usados igual en la vista previa y en el
+  PNG/PDF exportados.
+
+Cada plantilla declara `fonts.title|subtitle|meta` (familia, peso, cursiva y *tracking*), que
+generan tanto la cadena `font` del canvas como las peticiones de `document.fonts.load()`; las seis
+familias se precargan en `index.html` y el exportador espera a `ensurePosterFonts(theme)`.
+
+El selector (`ThemeSelector`) muestra una muestra circular bicolor (papel + disco de cielo con
+estrellas) por plantilla, con anillo y *checkmark* en la activa.
+
+→ `src/lib/celestialConfig.ts`, `src/components/ThemeSelector.tsx`, `src/lib/posterRender.ts`
+
+### 6. Datos desacoplados del motor
 
 El estado del póster (fecha, hora, desfase UTC, coordenadas, textos) vive en
 `src/state/poster.ts`. Escribir en los campos **no** redibuja el cielo en cada tecla: el
 desencadenante astronómico (`dateStr|timeStr|offset|lat|lon`) está normalizado y con *debounce*
 de 400 ms.
 
-### 6. Búsqueda de lugares
+### 7. Búsqueda de lugares
 
 - `Nominatim` (OpenStreetMap) como proveedor principal, con **Photon** como respaldo automático.
 - *Debounce* de 450 ms, mínimo de 3 caracteres, `AbortController`, *timeout* de 12 s y caché en

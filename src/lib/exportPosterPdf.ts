@@ -42,7 +42,7 @@ export async function exportPosterToPdf(input: ExportPdfInput): Promise<void> {
   }
 
   try {
-    await ensurePosterFonts();
+    await ensurePosterFonts(input.theme);
     renderPoster(ctx, { ...input, width: size.widthPx, height: size.heightPx });
 
     const dataUrl = canvas.toDataURL("image/jpeg", JPEG_QUALITY);

@@ -17,13 +17,17 @@
 
     <!--
       Tipografías usadas tanto en la vista previa (DOM) como en el lienzo de
-      exportación. `document.fonts.ready` se espera antes de pintar el PNG para
-      que el texto exportado sea idéntico al de la vista previa.
+      exportación. Cada plantilla declara sus propias familias (Cinzel,
+      Playfair Display, Inter, Space Mono, Merriweather, Courier Prime), así que
+      se precargan aquí TODAS: `ensurePosterFonts()` espera a que la plantilla
+      activa esté disponible antes de rasterizar, y si una familia no ha llegado
+      a tiempo se usa el fallback declarado en `fontSpec()` (nunca un salto de
+      layout visible).
     -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Inter:wght@400;500;600&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Playfair+Display:ital,wght@0,500;0,600;1,400;1,500&family=Inter:wght@400;500;600&family=Space+Mono:wght@400;700&family=Merriweather:ital,wght@0,400;0,700;1,400&family=Courier+Prime:ital,wght@0,400;0,700;1,400&display=swap"
       rel="stylesheet"
     />
 

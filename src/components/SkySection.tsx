@@ -1,5 +1,6 @@
-import { PROJECTIONS, PROJECTION_KEYS, THEMES, THEME_IDS } from "../lib/celestialConfig";
+import { PROJECTIONS, PROJECTION_KEYS, THEMES } from "../lib/celestialConfig";
 import type { PosterActions, PosterState } from "../state/poster";
+import { ThemeSelector } from "./ThemeSelector";
 import { Section, Segmented, Toggle } from "./ui";
 
 const FLAG_ITEMS = [
@@ -40,14 +41,9 @@ export function SkySection({
 
       <div>
         <p className="mb-1.5 font-sans text-[11px] font-semibold uppercase tracking-[0.14em] text-[#9aa4bd]">
-          Tema
+          Plantilla
         </p>
-        <Segmented
-          ariaLabel="Tema del póster"
-          value={poster.theme}
-          options={THEME_IDS.map((key) => ({ value: key, label: THEMES[key].label }))}
-          onChange={actions.setTheme}
-        />
+        <ThemeSelector value={poster.theme} onChange={actions.setTheme} />
         <p className="mt-2 text-xs leading-relaxed text-[#7f89a3]">{theme.hint}</p>
       </div>
 

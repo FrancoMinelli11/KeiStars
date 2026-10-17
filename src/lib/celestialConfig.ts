@@ -2,7 +2,10 @@ import type { CelestialConfig, CelestialLineConfig } from "./celestialTypes";
 import type { SkyFlags } from "../state/poster";
 
 export type ProjectionKey = "stereographic" | "azimuthalEquidistant";
-export type PosterThemeId = "night" | "minimal";
+export type PosterThemeId = "midnight" | "monochrome" | "parchment" | "obsidian";
+
+/** Plantilla por defecto: la más versátil para regalos conmemorativos. */
+export const DEFAULT_THEME_ID: PosterThemeId = "midnight";
 
 export interface ProjectionInfo {
   /** Valor que espera `config.projection` (clave de la tabla interna). */
@@ -37,10 +40,27 @@ export const PROJECTIONS: Record<ProjectionKey, ProjectionInfo> = {
 
 export const PROJECTION_KEYS = Object.keys(PROJECTIONS) as ProjectionKey[];
 
+/** Fuente con la que se pinta un bloque de texto (canvas y exportación). */
+export interface PosterThemeFont {
+  family: string;
+  weight: number;
+  italic?: boolean;
+  /** Kerning en px de diseño (0 = sin espaciado adicional). */
+  tracking?: number;
+}
+
+export interface PosterThemeFonts {
+  title: PosterThemeFont;
+  subtitle: PosterThemeFont;
+  meta: PosterThemeFont;
+}
+
 export interface PosterTheme {
   id: PosterThemeId;
   label: string;
   hint: string;
+  /** Descriptor corto del papel/acabado, para el selector de plantillas. */
+  paperLabel: string;
   poster: {
     bg: string;
     text: string;
@@ -48,9 +68,15 @@ export interface PosterTheme {
     accent: string;
     frame: string;
     ring: string;
+    /** Grosor del aro en px de diseño (por defecto 2,5). */
+    ringWidth: number;
+    /** Opacidad del aro (por defecto 1). */
+    ringAlpha: number;
+    /** Segundo aro concéntrico: separación en fracción del radio (0 = desactivado). */
+    ringInnerGap: number;
   };
   sky: {
-    /** Debe coincidir con `poster.bg` para que el círculo se funda con el papel. */
+    /** Puede coincidir con `poster.bg` (cielo fundido) o distinguirse (disco). */
     bg: string;
     star: string;
     starColors: boolean;
@@ -62,57 +88,145 @@ export interface PosterTheme {
     milkyWay: string;
     milkyWayOpacity: number;
   };
+  /** Tipografía del póster: se usa en pantalla y en la exportación PNG/PDF. */
+  fonts: PosterThemeFonts;
 }
 
 export const THEMES: Record<PosterThemeId, PosterTheme> = {
-  night: {
-    id: "night",
-    label: "Modo noche",
-    hint: "Fondo azul noche, estrellas en color espectral y detalles en dorado.",
+  midnight: {
+    id: "midnight",
+    label: "Midnight Blue",
+    hint: "Clásico conmemorativo: cielo azul noche, estrellas blancas y detalles en azul hielo.",
+    paperLabel: "Papel azul noche",
     poster: {
-      bg: "#0a0f1f",
-      text: "#f3efe4",
-      muted: "#9aa4bd",
-      accent: "#e8c478",
-      frame: "#e8c478",
-      ring: "#e8c478",
+      bg: "#0b132b",
+      text: "#eaf2ff",
+      muted: "#8ea3c9",
+      accent: "#48e5c2",
+      frame: "#48e5c2",
+      ring: "#48e5c2",
+      ringWidth: 2.2,
+      ringAlpha: 0.75,
+      ringInnerGap: 0,
     },
     sky: {
-      bg: "#0a0f1f",
+      bg: "#1c2541",
       star: "#ffffff",
       starColors: true,
-      constellationLine: "#8fa0c4",
-      constellationLineOpacity: 0.5,
-      constellationName: "#e8c478",
-      graticule: "#27314f",
+      constellationLine: "#6fffe9",
+      constellationLineOpacity: 0.45,
+      constellationName: "#6fffe9",
+      graticule: "#2a3a63",
       graticuleOpacity: 0.9,
-      milkyWay: "#93a7da",
-      milkyWayOpacity: 0.15,
+      milkyWay: "#8fb7e8",
+      milkyWayOpacity: 0.12,
+    },
+    fonts: {
+      title: { family: "Cinzel", weight: 600, tracking: 4 },
+      subtitle: { family: "Playfair Display", weight: 500, italic: true },
+      meta: { family: "Inter", weight: 500, tracking: 5.5 },
     },
   },
-  minimal: {
-    id: "minimal",
-    label: "Minimalista / impreso",
-    hint: "Papel blanco, estrellas y líneas en tinta oscura: pensado para imprimir.",
+  monochrome: {
+    id: "monochrome",
+    label: "Minimal Monochrome",
+    hint: "Estilo nórdico de galería: papel blanco, tinta negra de trazo fino y tipografía limpia.",
+    paperLabel: "Blanco roto",
     poster: {
-      bg: "#ffffff",
-      text: "#141414",
-      muted: "#6b7080",
-      accent: "#8b8b8b",
-      frame: "#141414",
-      ring: "#141414",
+      bg: "#f8fafc",
+      text: "#0f172a",
+      muted: "#64748b",
+      accent: "#94a3b8",
+      frame: "#0f172a",
+      ring: "#0f172a",
+      ringWidth: 1.2,
+      ringAlpha: 1,
+      ringInnerGap: 0,
     },
     sky: {
       bg: "#ffffff",
-      star: "#101010",
+      star: "#0f172a",
       starColors: false,
-      constellationLine: "#4a4f5c",
-      constellationLineOpacity: 0.7,
-      constellationName: "#6b7080",
-      graticule: "#d5d9e2",
+      constellationLine: "#0f172a",
+      constellationLineOpacity: 0.5,
+      constellationName: "#334155",
+      graticule: "#e2e8f0",
       graticuleOpacity: 1,
-      milkyWay: "#101010",
+      milkyWay: "#0f172a",
+      milkyWayOpacity: 0.05,
+    },
+    fonts: {
+      title: { family: "Inter", weight: 500, tracking: 10 },
+      subtitle: { family: "Inter", weight: 400, italic: true },
+      meta: { family: "Space Mono", weight: 400, tracking: 4.5 },
+    },
+  },
+  parchment: {
+    id: "parchment",
+    label: "Vintage Parchment",
+    hint: "Carta náutica antigua: pergamino cálido, tinta desvaída y doble aro de bronce.",
+    paperLabel: "Pergamino",
+    poster: {
+      bg: "#f4ebd0",
+      text: "#2c2416",
+      muted: "#7a6a52",
+      accent: "#b38b59",
+      frame: "#b38b59",
+      ring: "#b38b59",
+      ringWidth: 1.8,
+      ringAlpha: 1,
+      ringInnerGap: 0.016,
+    },
+    sky: {
+      bg: "#ebdcb9",
+      star: "#2c2416",
+      starColors: false,
+      constellationLine: "#4a3728",
+      constellationLineOpacity: 0.6,
+      constellationName: "#6b5a44",
+      graticule: "#d8c9a3",
+      graticuleOpacity: 1,
+      milkyWay: "#4a3728",
+      milkyWayOpacity: 0.08,
+    },
+    fonts: {
+      title: { family: "Merriweather", weight: 700 },
+      subtitle: { family: "Merriweather", weight: 400, italic: true },
+      meta: { family: "Courier Prime", weight: 400, tracking: 4 },
+    },
+  },
+  obsidian: {
+    id: "obsidian",
+    label: "Obsidian & Gold",
+    hint: "Premium: negro carbón mate, estrellas doradas y versalitas con kerning amplio.",
+    paperLabel: "Negro carbón",
+    poster: {
+      bg: "#09090b",
+      text: "#f5edd8",
+      muted: "#a89a72",
+      accent: "#e5c07b",
+      frame: "#d4af37",
+      ring: "#d4af37",
+      ringWidth: 2,
+      ringAlpha: 0.9,
+      ringInnerGap: 0.012,
+    },
+    sky: {
+      bg: "#121214",
+      star: "#e5c07b",
+      starColors: false,
+      constellationLine: "#d4af37",
+      constellationLineOpacity: 0.45,
+      constellationName: "#d4af37",
+      graticule: "#26262b",
+      graticuleOpacity: 1,
+      milkyWay: "#d4af37",
       milkyWayOpacity: 0.07,
+    },
+    fonts: {
+      title: { family: "Cinzel", weight: 700, tracking: 8 },
+      subtitle: { family: "Playfair Display", weight: 500, italic: true },
+      meta: { family: "Inter", weight: 500, tracking: 6 },
     },
   },
 };

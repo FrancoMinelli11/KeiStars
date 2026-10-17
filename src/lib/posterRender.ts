@@ -1,4 +1,4 @@
-import type { PosterTheme } from "./celestialConfig";
+import type { PosterTheme, PosterThemeFont } from "./celestialConfig";
 import { getPosterLayout, type PosterLayout } from "./posterLayout";
 
 export interface PosterRenderInput {
@@ -23,25 +23,54 @@ export interface PosterRenderInput {
   placeholderLabel: string;
 }
 
-const FONT_TITLE = (size: number) => `600 ${size}px "Cormorant Garamond", Georgia, "Times New Roman", serif`;
-const FONT_SUBTITLE = (size: number) =>
-  `italic 500 ${size}px "Cormorant Garamond", Georgia, "Times New Roman", serif`;
-const FONT_META = (size: number) => `500 ${size}px "Inter", system-ui, "Helvetica Neue", Arial, sans-serif`;
+const SERIF_FALLBACK = 'Georgia, "Times New Roman", serif';
+const SANS_FALLBACK = 'system-ui, "Helvetica Neue", Arial, sans-serif';
+
+/** Cadena `font` del canvas para una tipografía de plantilla. */
+export function fontSpec(font: PosterThemeFont, size: number, serif = true): string {
+  const fallback = serif ? SERIF_FALLBACK : SANS_FALLBACK;
+  return `${font.italic ? "italic " : ""}${font.weight} ${size}px "${font.family}", ${fallback}`;
+}
+
+/** Ancho ocupado por un texto con tracking manual entre caracteres. */
+function measureTracked(ctx: CanvasRenderingContext2D, text: string, tracking: number): number {
+  const chars = Array.from(text);
+  if (chars.length === 0) return 0;
+  const widths = chars.map((char) => ctx.measureText(char).width);
+  return widths.reduce((sum, w) => sum + w, 0) + tracking * (chars.length - 1);
+}
 
 function tidy(text: string): string {
   return text.replace(/\s+/g, " ").trim();
 }
 
-/** Reduce el cuerpo hasta que el texto quepa en `maxWidth` (mín. 62 %). */
-function fitFont(ctx: CanvasRenderingContext2D, text: string, font: (size: number) => string, size: number, maxWidth: number): number {
+/**
+ * Reduce el cuerpo hasta que el texto (con su tracking) quepa en `maxWidth`
+ * (mín. 62 %). Devuelve el cuerpo definitivo y deja `ctx.font` ajustado.
+ */
+function fitFont(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  font: PosterThemeFont,
+  serif: boolean,
+  size: number,
+  maxWidth: number,
+  tracking: number,
+): number {
   let current = size;
-  ctx.font = font(current);
+  ctx.font = fontSpec(font, current, serif);
   const min = size * 0.62;
-  while (ctx.measureText(text).width > maxWidth && current > min) {
+  while (measureTracked(ctx, text, tracking) > maxWidth && current > min) {
     current -= Math.max(1, size * 0.03);
-    ctx.font = font(current);
+    ctx.font = fontSpec(font, current, serif);
   }
   return current;
+}
+
+/** Dibuja centrado; con tracking > 0 reparte el kerning a mano (portable). */
+function drawText(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, tracking: number): void {
+  if (tracking > 0) drawTracked(ctx, text, x, y, tracking);
+  else drawCentered(ctx, text, x, y);
 }
 
 function drawCentered(ctx: CanvasRenderingContext2D, text: string, x: number, y: number): void {
@@ -62,6 +91,34 @@ function drawTracked(ctx: CanvasRenderingContext2D, text: string, x: number, y: 
     ctx.fillText(char, cursor, y);
     cursor += widths[index] + tracking;
   });
+}
+
+/**
+ * Aro decorativo alrededor del cielo. Las plantillas definen grosor (px de
+ * diseño), opacidad y un opcional segundo aro concéntrico (p. ej. el doble
+ * aro de bronce de Vintage Parchment).
+ */
+function drawRing(ctx: CanvasRenderingContext2D, layout: PosterLayout, theme: PosterTheme): void {
+  const { poster } = theme;
+  const { cx, cy, r } = layout.circle;
+
+  ctx.save();
+  ctx.globalAlpha = poster.ringAlpha;
+  ctx.strokeStyle = poster.ring;
+
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.lineWidth = Math.max(1, poster.ringWidth * layout.unit);
+  ctx.stroke();
+
+  if (poster.ringInnerGap > 0) {
+    ctx.lineWidth = Math.max(1, poster.ringWidth * 0.55 * layout.unit);
+    ctx.beginPath();
+    ctx.arc(cx, cy, r * (1 - poster.ringInnerGap), 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
+  ctx.restore();
 }
 
 function drawMap(ctx: CanvasRenderingContext2D, input: PosterRenderInput, layout: PosterLayout): void {
@@ -103,7 +160,7 @@ function drawMap(ctx: CanvasRenderingContext2D, input: PosterRenderInput, layout
     ctx.stroke();
     ctx.setLineDash([]);
     ctx.fillStyle = input.theme.poster.muted;
-    ctx.font = FONT_META(layout.subtitle.size * 0.5);
+    ctx.font = fontSpec(input.theme.fonts.meta, layout.subtitle.size * 0.5, false);
     drawCentered(ctx, input.placeholderLabel, circle.cx, circle.cy + layout.subtitle.size * 0.18);
   }
 
@@ -145,25 +202,32 @@ export function renderPoster(ctx: CanvasRenderingContext2D, input: PosterRenderI
 
   drawMap(ctx, input, layout);
 
-  // Aro decorativo alrededor del cielo
-  ctx.beginPath();
-  ctx.arc(layout.circle.cx, layout.circle.cy, layout.circle.r, 0, Math.PI * 2);
-  ctx.lineWidth = layout.circle.stroke;
-  ctx.strokeStyle = theme.poster.ring;
-  ctx.stroke();
+  // Aro decorativo alrededor del cielo (grosor, opacidad y doble aro por plantilla)
+  drawRing(ctx, layout, theme);
 
+  const { fonts } = theme;
   const title = tidy(input.title);
   if (title) {
+    const titleTracking = (fonts.title.tracking ?? 0) * layout.unit;
     ctx.fillStyle = theme.poster.text;
-    fitFont(ctx, title, FONT_TITLE, layout.title.size, layout.title.maxWidth);
-    drawCentered(ctx, title, width / 2, layout.title.y);
+    fitFont(ctx, title, fonts.title, true, layout.title.size, layout.title.maxWidth, titleTracking);
+    drawText(ctx, title, width / 2, layout.title.y, titleTracking);
   }
 
   const subtitle = tidy(input.subtitle);
   if (subtitle) {
+    const subtitleTracking = (fonts.subtitle.tracking ?? 0) * layout.unit;
     ctx.fillStyle = theme.poster.accent;
-    fitFont(ctx, subtitle, FONT_SUBTITLE, layout.subtitle.size, layout.subtitle.maxWidth);
-    drawCentered(ctx, subtitle, width / 2, layout.subtitle.y);
+    fitFont(
+      ctx,
+      subtitle,
+      fonts.subtitle,
+      true,
+      layout.subtitle.size,
+      layout.subtitle.maxWidth,
+      subtitleTracking,
+    );
+    drawText(ctx, subtitle, width / 2, layout.subtitle.y, subtitleTracking);
   }
 
   // Filete de cierre
@@ -179,7 +243,15 @@ export function renderPoster(ctx: CanvasRenderingContext2D, input: PosterRenderI
   const coordinates = tidy(input.coordinates);
   if (coordinates) {
     ctx.fillStyle = theme.poster.muted;
-    fitFont(ctx, coordinates, FONT_META, layout.coordinates.size, layout.coordinates.maxWidth);
+    fitFont(
+      ctx,
+      coordinates,
+      fonts.meta,
+      false,
+      layout.coordinates.size,
+      layout.coordinates.maxWidth,
+      layout.coordinates.tracking,
+    );
     drawTracked(ctx, coordinates.toUpperCase(), width / 2, layout.coordinates.y, layout.coordinates.tracking);
   }
 

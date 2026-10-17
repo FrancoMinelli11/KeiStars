@@ -1,22 +1,35 @@
-import { EXPORT_WIDTH } from "./celestialConfig";
+import { EXPORT_WIDTH, type PosterTheme } from "./celestialConfig";
 import { getPosterLayout } from "./posterLayout";
-import { renderPoster, type PosterRenderInput } from "./posterRender";
-
-const FONT_SPECS = [
-  '600 64px "Cormorant Garamond"',
-  'italic 500 32px "Cormorant Garamond"',
-  '500 24px "Inter"',
-];
+import { fontSpec, renderPoster, type PosterRenderInput } from "./posterRender";
 
 /**
- * Espera a que las tipografías web estén disponibles para que el texto del PNG
- * sea idéntico al de la vista previa. Si fallan (sin red), se usan las de
- * respaldo de la pila del sistema sin abortar la exportación.
+ * Cuerpo (px) con el que se piden las familias a `document.fonts.load`.
+ * Cargar una familia con un cuerpo la deja disponible para todos los tamaños.
  */
-export async function ensurePosterFonts(): Promise<void> {
+const FONT_LOAD_SIZE = 64;
+
+/**
+ * Specs de las tres familias de la plantilla (título, subtítulo y meta).
+ * Se construyen desde `theme.fonts` para que la exportación use exactamente
+ * la tipografía del preset activo (nunca el fallback del sistema).
+ */
+function fontSpecsForTheme(theme: PosterTheme): string[] {
+  return [
+    fontSpec(theme.fonts.title, FONT_LOAD_SIZE),
+    fontSpec(theme.fonts.subtitle, FONT_LOAD_SIZE),
+    fontSpec(theme.fonts.meta, FONT_LOAD_SIZE),
+  ];
+}
+
+/**
+ * Espera a que las tipografías web de la plantilla estén disponibles para que
+ * el texto del PNG/PDF sea idéntico al de la vista previa. Si fallan (sin red),
+ * se usan las de respaldo de la pila del sistema sin abortar la exportación.
+ */
+export async function ensurePosterFonts(theme: PosterTheme): Promise<void> {
   if (!("fonts" in document)) return;
   try {
-    await Promise.all(FONT_SPECS.map((spec) => document.fonts.load(spec)));
+    await Promise.all(fontSpecsForTheme(theme).map((spec) => document.fonts.load(spec)));
     await document.fonts.ready;
   } catch {
     /* tipografías de respaldo */
@@ -74,7 +87,7 @@ export async function exportPoster(input: ExportPosterInput): Promise<void> {
     throw new Error("Este navegador no permite crear un lienzo 2D para exportar.");
   }
 
-  await ensurePosterFonts();
+  await ensurePosterFonts(input.theme);
   renderPoster(ctx, { ...input, width: EXPORT_WIDTH });
 
   const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png"));

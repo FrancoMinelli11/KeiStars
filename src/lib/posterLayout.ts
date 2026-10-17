@@ -57,7 +57,11 @@ export interface PosterLayout {
   frameStroke: number;
   innerFrameInset: number;
   innerFrameStroke: number;
-  circle: { cx: number; cy: number; r: number; stroke: number };
+  /**
+   * Posición y radio del disco celeste. El aro (grosor, opacidad, doble aro)
+   * lo define la plantilla, no la geometría.
+   */
+  circle: { cx: number; cy: number; r: number };
   title: PosterTextBlock;
   subtitle: PosterTextBlock;
   divider: { y: number; width: number; stroke: number };
@@ -89,7 +93,6 @@ export function getPosterLayout(width: number, height: number = Math.round(width
       cx: width / 2,
       cy: circleCy,
       r,
-      stroke: Math.max(1, 2.5 * u),
     },
     title: { y: titleY, size: 86 * u, maxWidth: 1010 * u },
     subtitle: { y: titleY + TEXT_STEP.subtitle * u, size: 44 * u, maxWidth: 920 * u },
