@@ -1,8 +1,9 @@
 # keiStars
 
 Generador de **pósters conmemorativos de mapa estelar**: elige una fecha, una hora y un lugar,
-y obtén un cartel (vista previa + PNG en alta resolución) con el firmamento tal y como se vio
-—o se verá— desde ese punto del planeta.
+y obtén un cartel —vista previa, PNG o **PDF listo para imprenta** (21×30, 30×40, 40×50 y
+50×70 cm a 300 DPI)— con el firmamento tal y como se vio —o se verá— desde ese punto del
+planeta.
 
 Todo el cálculo astronómico y el render ocurre **en tu navegador**; no hay backend.
 
@@ -16,6 +17,7 @@ Todo el cálculo astronómico y el render ocurre **en tu navegador**; no hay bac
 | Build    | Vite 8 |
 | Estilos  | Tailwind CSS 4 (`@tailwindcss/vite`) |
 | Motor    | [`d3-celestial`](https://github.com/ofrohn/d3-celestial) 0.7 (cargado fuera del bundler) |
+| PDF      | `jsPDF` (import dinámico: solo se descarga al exportar)    |
 | Geocoder | Nominatim (OpenStreetMap) con respaldo en Photon |
 
 ## Requisitos
@@ -86,17 +88,37 @@ consulta TimeZoneDB: el desfase UTC lo aporta el usuario, con estimación por lo
 
 ### 4. Exportación nítida y sin *tainted canvas*
 
-El mapa se dibuja en su propio `<canvas>` (tamaño calculado para que su círculo del horizonte
-mida exactamente el círculo del póster exportado). La vista previa y el PNG se componen con la
+El mapa se dibuja en su propio `<canvas>` y la vista previa y los archivos se componen con la
 **misma función** (`renderPoster`), así que lo que ves es lo que descargas:
 
-- Vista previa: `1200 × 1600`
-- Exportación: `2400 × 3200` (2×) vía `canvas.toBlob("image/png")` → descarga
+| Salida        | Lienzo                  | Detalle                                                     |
+| ------------- | ----------------------- | ----------------------------------------------------------- |
+| Vista previa  | `1200 × 1600`           | proporción 3:4                                               |
+| PNG           | `2400 × 3200`           | `canvas.toBlob("image/png")`                                |
+| PDF imprenta  | 300 DPI reales          | 21×30 · 30×40 · 40×50 · 50×70 cm                            |
+
+Flujo del PDF (`exportPosterToPdf`):
+
+1. Se cede un frame al navegador para que se pinte el spinner ("Generando PDF de alta calidad…").
+2. `withCelestialResolution()` re-renderiza el mapa a la resolución del formato con
+   `Celestial.apply(estilos escalados)` + `Celestial.resize(ancho)` (la librería recalcula
+   `scale · width/1024`, grosores y fuentes); el repinto es síncrono (`disableAnimations`).
+3. Se compone un lienzo auxiliar de tamaño real (p. ej. `3543 × 4724 px` para 30×40) y se
+   rasteriza a JPEG 0,95.
+4. `new jsPDF({ unit: "mm", format: [anchoMm, altoMm] })` recibe la imagen con
+   `addImage(dataUrl, "JPEG", 0, 0, anchoMm, altoMm)` y la descarga como
+   `keistars-<título>-<W>x<H>cm.pdf` — medidas exactas de papel, no escalado a A4.
+5. En el `finally` se restaura la resolución original de d3-celestial y se libera el lienzo.
+
+El layout es independiente del formato: el círculo se ancla al margen superior y el bloque de
+textos al borde inferior (`getPosterLayout(ancho, alto)`), con medidas en "unidades de diseño"
+(`u = ancho / 1200`) para que 21×30 y 50×70 luzcan idénticos salvo por el aire vertical.
 
 No se pintan imágenes *cross-origin*, así que el lienzo nunca queda contaminado. Se espera a
-`document.fonts.ready` para que las tipografías sean idénticas en pantalla y en el PNG.
+`document.fonts.ready` para que las tipografías sean idénticas en pantalla y en el archivo.
 
-→ `src/lib/posterLayout.ts`, `src/lib/posterRender.ts`, `src/lib/exportPoster.ts`
+→ `src/lib/posterLayout.ts`, `src/lib/posterRender.ts`, `src/lib/posterSizes.ts`,
+`src/lib/exportPoster.ts`, `src/lib/exportPosterPdf.ts`, `src/lib/celestialMap.ts`
 
 ### 5. Datos desacoplados del motor
 

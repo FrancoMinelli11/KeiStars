@@ -103,6 +103,38 @@ export function applyCelestialStyle(input: CelestialStyleInput): void {
   requireCelestial().apply(buildCelestialStyle(input));
 }
 
+export interface ResolutionInput extends CelestialStyleInput {
+  host: HTMLElement;
+}
+
+/**
+ * Renderiza el mapa a otra resolución, ejecuta `capture` y restaura el tamaño
+ * de pantalla original.
+ *
+ * Es el camino para exportar a 300 DPI: `apply()` actualiza estrellas, grosores
+ * y fuentes escalados por `sizeFactor`, y `resize()` redimensiona el lienzo y
+ * recalcula la proyección (`scale · width/1024`) antes de repintar. El repintado
+ * es síncrono gracias a `disableAnimations`, así que al resolver la promesa el
+ * mapa ya está dibujado a resolución completa.
+ */
+export async function withCelestialResolution<T>(
+  preview: ResolutionInput,
+  target: ResolutionInput,
+  capture: () => Promise<T>,
+): Promise<T> {
+  const api = requireCelestial();
+
+  api.apply({ ...buildCelestialStyle(target) });
+  api.resize(target.geometry.widthCss);
+
+  try {
+    return await capture();
+  } finally {
+    api.apply({ ...buildCelestialStyle(preview) });
+    api.resize(preview.geometry.widthCss);
+  }
+}
+
 /**
  * Orienta el mapa al cenit del observador para una fecha/hora/desfase.
  * `skyview()` actualiza los campos internos del formulario y ejecuta el cálculo

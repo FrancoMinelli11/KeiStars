@@ -109,6 +109,11 @@ export interface CelestialApi {
   /** Aplica cambios de estilo/visibilidad sin volver a descargar los datos. */
   apply(config: Partial<CelestialConfig>): void;
   redraw(): void;
+  /**
+   * Cambia el ancho de trabajo del mapa (en px CSS), redimensiona el lienzo
+   * teniendo en cuenta la densidad de píxeles y repinta. Devuelve el nuevo ancho.
+   */
+  resize(config: number | { width: number }): number;
   skyview(params: CelestialSkyviewParams): unknown;
   date(date?: Date, timezone?: number): Date | undefined;
   location(location?: [number, number], timezone?: number): [number, number] | undefined;

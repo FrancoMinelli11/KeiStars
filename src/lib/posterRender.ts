@@ -2,8 +2,13 @@ import type { PosterTheme } from "./celestialConfig";
 import { getPosterLayout, type PosterLayout } from "./posterLayout";
 
 export interface PosterRenderInput {
-  /** Ancho en px del lienzo de destino (1200 vista previa / 2400 exportación). */
+  /** Ancho en px del lienzo de destino (1200 vista previa / 2400 PNG / tamaño de imprenta). */
   width: number;
+  /**
+   * Alto en px. Opcional: si se omite se usa la proporción 3:4. Los formatos
+   * de impresión (21×30, 40×50…) lo pasan para conservar su proporción real.
+   */
+  height?: number;
   theme: PosterTheme;
   title: string;
   subtitle: string;
@@ -110,7 +115,7 @@ function drawMap(ctx: CanvasRenderingContext2D, input: PosterRenderInput, layout
  * Es la misma función para la vista previa y para el PNG de alta resolución.
  */
 export function renderPoster(ctx: CanvasRenderingContext2D, input: PosterRenderInput): PosterLayout {
-  const layout = getPosterLayout(input.width);
+  const layout = getPosterLayout(input.width, input.height);
   const { theme } = input;
   const { width, height } = layout;
 

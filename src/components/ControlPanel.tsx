@@ -12,7 +12,7 @@ export function ControlPanel({ poster, actions }: { poster: PosterState; actions
           Carta celeste
         </p>
         <h1 className="mt-2 font-display text-4xl font-semibold leading-none text-white">
-          keiStars
+          KeiStars
         </h1>
         <p className="mt-3 max-w-[34ch] text-[13px] leading-relaxed text-[#9aa4bd]">
           Diseña un póster con el cielo tal y como se vio —o se verá— desde un lugar y un momento
