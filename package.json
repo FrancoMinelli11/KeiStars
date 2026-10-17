@@ -1,0 +1,30 @@
+{
+  "name": "keistars",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Pósters conmemorativos de mapa estelar generados en el navegador con d3-celestial.",
+  "scripts": {
+    "vendor": "node scripts/copy-vendor.mjs",
+    "predev": "node scripts/copy-vendor.mjs",
+    "dev": "vite",
+    "prebuild": "node scripts/copy-vendor.mjs",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "d3-celestial": "^0.7.35",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.3.3",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.2",
+    "tailwindcss": "^4.3.3",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.3"
+  }
+}

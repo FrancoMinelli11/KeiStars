@@ -1,0 +1,39 @@
+@import "tailwindcss";
+
+@theme {
+  --font-display: "Cormorant Garamond", Georgia, "Times New Roman", serif;
+  --font-sans: "Inter", system-ui, "Helvetica Neue", Arial, sans-serif;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  background: #070912;
+  color: #e7e9f2;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background: rgba(232, 196, 120, 0.3);
+}
+
+/*
+ * d3-celestial necesita crear su formulario interno para que `skyview()` pueda
+ * leer y escribir fecha/posición, pero nunca debe mostrarse en la interfaz.
+ */
+#celestial-form,
+#error {
+  display: none !important;
+}
+
+/* El lienzo celeste vive en un slot oculto: su tamaño lo fija su contenedor. */
+#keistars-sky canvas {
+  display: block;
+}
