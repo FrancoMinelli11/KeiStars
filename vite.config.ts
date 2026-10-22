@@ -11,4 +11,5 @@ export default defineConfig({
     sourcemap: false,
     chunkSizeWarningLimit: 700,
   },
+  base: "/KeiStars/",
 });
