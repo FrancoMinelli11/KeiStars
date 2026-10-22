@@ -1,18 +1,12 @@
 import type { PosterActions, PosterState } from "../state/poster";
 import { Button, Field, Section, TextInput } from "./ui";
 
-export function CopySection({
-  poster,
-  actions,
-}: {
-  poster: PosterState;
-  actions: PosterActions;
-}) {
+export function CopySection({ poster, actions }: { poster: PosterState; actions: PosterActions }) {
   return (
     <Section
       index="04"
       title="Los textos"
-      hint="Solo tipografía y mensajes: no tocan el cálculo astronómico. Se pintan con las mismas medidas en la vista previa y en el PNG."
+      hint="Solo tipografía y mensajes: no tocan el cálculo astronómico. Se pintan con las mismas medidas en la vista previa y en el PNG. (Si quieres que algún título no se muestre, déjalo vacío.)"
     >
       <Field label="Título" htmlFor="copy-title" hint={`${poster.title.length} / 64 caracteres`}>
         <TextInput

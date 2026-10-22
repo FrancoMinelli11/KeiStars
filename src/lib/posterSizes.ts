@@ -49,6 +49,11 @@ export const POSTER_SIZES: PosterSize[] = [
 
 export const DEFAULT_POSTER_SIZE_ID = "30x40";
 
+/** Ancho en px de la vista previa (proporción del formato activo). */
+export const PREVIEW_WIDTH = 1200;
+/** Ancho en px del lienzo de exportación PNG (2× la vista previa). */
+export const EXPORT_WIDTH = 2400;
+
 export function getPosterSize(id: string): PosterSize {
   return POSTER_SIZES.find((size) => size.id === id) ?? POSTER_SIZES[0];
 }

@@ -16,22 +16,10 @@
     />
 
     <!--
-      Tipografías usadas tanto en la vista previa (DOM) como en el lienzo de
-      exportación. Cada plantilla declara sus propias familias (Cinzel,
-      Playfair Display, Inter, Space Mono, Merriweather, Courier Prime), así que
-      se precargan aquí TODAS: `ensurePosterFonts()` espera a que la plantilla
-      activa esté disponible antes de rasterizar, y si una familia no ha llegado
-      a tiempo se usa el fallback declarado en `fontSpec()` (nunca un salto de
-      layout visible).
-    -->
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Playfair+Display:ital,wght@0,500;0,600;1,400;1,500&family=Inter:wght@400;500;600&family=Space+Mono:wght@400;700&family=Merriweather:ital,wght@0,400;0,700;1,400&family=Courier+Prime:ital,wght@0,400;0,700;1,400&display=swap"
-      rel="stylesheet"
-    />
+      Las tipografías (Cinzel, Playfair Display, Inter, Space Mono, Merriweather,
+      Courier Prime y Cormorant Garamond) están AUTOALOJADAS vía @fontsource:
+      se inyectan por el bundler (`src/fonts.ts`) sin peticiones a Google Fonts.
 
-    <!--
       Los scripts de d3 v3 + d3-celestial NO se declaran aquí: se cargan de
       forma asíncrona y secuencial dentro de `useEffect`
       (src/lib/celestialLoader.ts) con fallback automático a CDN. Esto evita

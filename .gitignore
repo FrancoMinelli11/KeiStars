@@ -1,5 +1,8 @@
 node_modules/
 dist/
+coverage/
 public/vendor/
 *.log
+.env
+.env.local
 .DS_Store

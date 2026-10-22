@@ -1,28 +1,52 @@
 # keiStars
 
-Generador de **pósters conmemorativos de mapa estelar**: elige una fecha, una hora y un lugar,
-y obtén un cartel —vista previa, PNG o **PDF listo para imprenta** (21×30, 30×40, 40×50 y
-50×70 cm a 300 DPI)— con el firmamento tal y como se vio —o se verá— desde ese punto del
-planeta.
+Generador de **pósters conmemorativos de mapa estelar**: elige una fecha, una hora y un
+lugar, y obtén un cartel —vista previa, PNG o **PDF listo para imprenta** (21×30, 30×40,
+40×50 y 50×70 cm a 300 DPI)— con el firmamento tal y como se vio —o se verá— desde ese
+punto del planeta.
 
 Todo el cálculo astronómico y el render ocurre **en tu navegador**; no hay backend.
 
 ---
 
+## Qué incluye
+
+- **Cielo fiel a la hora local del lugar**: zona horaria IANA real (`tz-lookup` + `Intl`),
+  con horario de verano resuelto por hora de pared. Coincide con la zona política
+  (p. ej. Mendoza es UTC−03:00, no la estimación solar UTC−05:00).
+- **Cuatro plantillas** (Midnight Blue, Minimal Monochrome, Vintage Parchment,
+  Obsidian & Gold) y **personalización de los 12 colores** del papel y del cielo, con
+  fusión sobre el preset activo y aviso de contraste bajo.
+- **PDF de imprenta**: tamaño exacto, 300 DPI, sangrado opcional de 3 mm, marcas de
+  corte y metadatos del documento.
+- **PNG** de 2400 × 3200 px para uso digital.
+- **Autoguardado** del diseño y **enlace compartible** (`#p=` con el estado codificado;
+  no viaja a ningún servidor).
+- **Tipografías autoalojadas** (`@fontsource`): sin peticiones a Google Fonts, con
+  fallback por categoría tipográfica y carga explícita antes de exportar.
+- **Accesibilidad**: grupos de opciones con teclado (roving tabindex), regiones
+  `aria-live`, foco visible, resumen textual del póster y vista ampliada.
+- **Búsqueda de lugares** con Nominatim y respaldo en Photon, con throttle de ~1 req/s,
+  caché y atribución de OpenStreetMap.
+- **Tests** (Vitest) y **CI** (typecheck + lint + tests + build).
+
 ## Stack
 
-| Capa     | Tecnología |
-| -------- | ---------- |
-| UI       | React 19 + TypeScript (estricto) |
-| Build    | Vite 8 |
-| Estilos  | Tailwind CSS 4 (`@tailwindcss/vite`) |
-| Motor    | [`d3-celestial`](https://github.com/ofrohn/d3-celestial) 0.7 (cargado fuera del bundler) |
-| PDF      | `jsPDF` (import dinámico: solo se descarga al exportar)    |
-| Geocoder | Nominatim (OpenStreetMap) con respaldo en Photon |
+| Capa     | Tecnología                                                                       |
+| -------- | -------------------------------------------------------------------------------- |
+| UI       | React 19 + TypeScript 7 (estricto)                                               |
+| Build    | Vite 8                                                                           |
+| Estilos  | Tailwind CSS 4 (`@tailwindcss/vite`)                                             |
+| Motor    | [`d3-celestial`](https://github.com/ofrohn/d3-celestial) 0.7 (fuera del bundler) |
+| PDF      | `jsPDF` (import dinámico: solo se descarga al exportar)                          |
+| Zonas    | `tz-lookup` + `Intl.DateTimeFormat`                                              |
+| Fuentes  | Fontsource (autoalojadas, subset latino)                                         |
+| Geocoder | Nominatim (OpenStreetMap) con respaldo en Photon                                 |
+| Calidad  | Vitest, ESLint (flat), Prettier, GitHub Actions                                  |
 
 ## Requisitos
 
-- Node.js ≥ 20 (probado con 24)
+- Node.js ≥ 22.12 (probado con 24; Vitest 5 no soporta Node 20)
 - npm ≥ 10
 
 ## Puesta en marcha
@@ -32,159 +56,175 @@ npm install     # instala dependencias
 npm run dev     # predev copia los assets de d3-celestial y arranca Vite
 ```
 
-Abre <http://localhost:5173>.
+Abre <http://localhost:5173/KeiStars/> (el `base` de Vite es `/KeiStars/`).
 
 ## Scripts
 
-| Comando              | Qué hace                                                                  |
-| -------------------- | ------------------------------------------------------------------------- |
-| `npm run dev`        | Copia `public/vendor/celestial` (`predev`) y arranca el servidor de Vite   |
-| `npm run build`      | Copia vendor, `tsc --noEmit` y `vite build` → `dist/`                      |
-| `npm run preview`    | Sirve el build de producción                                              |
-| `npm run vendor`     | Regenera solo la carpeta vendor de d3-celestial                           |
-| `npm run typecheck`  | Comprobación de tipos sin emitir                                          |
+| Script                 | Qué hace                                                 |
+| ---------------------- | -------------------------------------------------------- |
+| `npm run dev`          | Copia el vendor de d3-celestial y arranca Vite           |
+| `npm run build`        | Typecheck + build de producción en `dist/`               |
+| `npm run preview`      | Sirve el build de producción                             |
+| `npm run typecheck`    | Solo comprobación de tipos (`tsc --noEmit`)              |
+| `npm run test`         | Tests unitarios (Vitest)                                 |
+| `npm run test:watch`   | Tests en modo watch                                      |
+| `npm run coverage`     | Cobertura V8 (texto + HTML)                              |
+| `npm run lint`         | ESLint (TypeScript, hooks y fast refresh)                |
+| `npm run format`       | Prettier sobre `src/**` y documentación                  |
+| `npm run format:check` | Comprueba formato sin escribir                           |
+| `npm run vendor`       | Copia scripts y datos de d3-celestial a `public/vendor/` |
 
----
+> TypeScript 7 no expone todavía la API de compilador que usa `typescript-eslint`.
+> Siguiendo la recomendación oficial, `package.json` instala TS 7 como
+> `@typescript/native` (binario `tsc`) y TS 6 como `typescript` (API para ESLint).
 
 ## Arquitectura
 
-### 1. d3-celestial vive fuera del bundler
-
-`celestial.min.js` es un IIFE clásico que termina en `this.Celestial = …` y usa la variable
-global `d3` **en el momento de evaluación**. Importarlo desde un módulo ESM (Vite) rompe ambos
-supuestos (`this === undefined` en módulos ecológicos ESM, `d3` sin declarar), así que la app
-inyecta tres `<script>` clásicos en orden —y con *fallback* a jsDelivr si fallan:
-
-1. `lib/d3.min.js` (d3 v3)
-2. `lib/d3.geo.projection.min.js`
-3. `celestial.min.js`
-
-→ `src/lib/celestialLoader.ts`
-
-### 2. `datapath` local sin 404
-
-`scripts/copy-vendor.mjs` copia a `public/vendor/celestial` la whitelist exacta de ficheros que
-la librería descarga de forma incondicional en `load()` (`mw.json`, `constellations.*`,
-`stars.6.json`, `starnames.json`, `dsos.bright.json`, `dsonames.json`, `planets.json`) y escribe
-un `manifest.json` con el listado. El cargador valida ese manifiesto antes de declarar el origen
-local disponible; si falta algo, usa el CDN.
-
-### 3. Ciclo de vida del mapa
-
-Una **única instancia** de d3-celestial se monta en un *slot* oculto:
-
-| Momento                          | Llamada                                                        |
-| -------------------------------- | -------------------------------------------------------------- |
-| Montaje / cambio de proyección   | `Celestial.display(config)` tras `destroyCelestial()`           |
-| Cambio de tema o de *toggles*     | `Celestial.apply(estilo)` (repinta sin recargar los GeoJSON)    |
-| Cambio de fecha, hora o lugar     | `Celestial.skyview({ date, location, timezone })` con debounce  |
-| Desmontaje (incluye StrictMode)  | `destroyCelestial()` limpia canvas, `#celestial-form`, `#error` y listeners |
-
-Orientación cenital: `follow: "zenith"` + `transform: "equatorial"` + `disableAnimations` (giros
-síncronos, indispensables para exportar sin esperar transiciones) y `settimezone: false` (nunca
-consulta TimeZoneDB: el desfase UTC lo aporta el usuario, con estimación por longitud).
-
-→ `src/lib/celestialMap.ts`, `src/hooks/useCelestialMap.ts`
-
-### 4. Exportación nítida y sin *tainted canvas*
-
-El mapa se dibuja en su propio `<canvas>` y la vista previa y los archivos se componen con la
-**misma función** (`renderPoster`), así que lo que ves es lo que descargas:
-
-| Salida        | Lienzo                  | Detalle                                                     |
-| ------------- | ----------------------- | ----------------------------------------------------------- |
-| Vista previa  | `1200 × 1600`           | proporción 3:4                                               |
-| PNG           | `2400 × 3200`           | `canvas.toBlob("image/png")`                                |
-| PDF imprenta  | 300 DPI reales          | 21×30 · 30×40 · 40×50 · 50×70 cm                            |
-
-Flujo del PDF (`exportPosterToPdf`):
-
-1. Se cede un frame al navegador para que se pinte el spinner ("Generando PDF de alta calidad…").
-2. `withCelestialResolution()` re-renderiza el mapa a la resolución del formato con
-   `Celestial.apply(estilos escalados)` + `Celestial.resize(ancho)` (la librería recalcula
-   `scale · width/1024`, grosores y fuentes); el repinto es síncrono (`disableAnimations`).
-3. Se compone un lienzo auxiliar de tamaño real (p. ej. `3543 × 4724 px` para 30×40) y se
-   rasteriza a JPEG 0,95.
-4. `new jsPDF({ unit: "mm", format: [anchoMm, altoMm] })` recibe la imagen con
-   `addImage(dataUrl, "JPEG", 0, 0, anchoMm, altoMm)` y la descarga como
-   `keistars-<título>-<W>x<H>cm.pdf` — medidas exactas de papel, no escalado a A4.
-5. En el `finally` se restaura la resolución original de d3-celestial y se libera el lienzo.
-
-El layout es independiente del formato: el círculo se ancla al margen superior y el bloque de
-textos al borde inferior (`getPosterLayout(ancho, alto)`), con medidas en "unidades de diseño"
-(`u = ancho / 1200`) para que 21×30 y 50×70 luzcan idénticos salvo por el aire vertical.
-
-No se pintan imágenes *cross-origin*, así que el lienzo nunca queda contaminado. Se espera a
-`document.fonts.ready` para que las tipografías sean idénticas en pantalla y en el archivo.
-
-→ `src/lib/posterLayout.ts`, `src/lib/posterRender.ts`, `src/lib/posterSizes.ts`,
-`src/lib/exportPoster.ts`, `src/lib/exportPosterPdf.ts`, `src/lib/celestialMap.ts`
-
-### 5. Plantillas (presets) con un clic
-
-Cuatro estilos completos —papel, cielo, estrellas, líneas y tipografía— en
-`src/lib/celestialConfig.ts`:
-
-| Plantilla           | Papel            | Cielo / estrellas                       | Tipografía                            |
-| ------------------- | ---------------- | --------------------------------------- | ------------------------------------- |
-| **Midnight Blue**   | `#0b132b`        | `#1c2541`, blancas, líneas azul hielo   | Cinzel + Playfair Display + Inter     |
-| **Minimal Monochrome** | `#f8fafc`     | blanco, tinta `#0f172a`, trazo fino     | Inter con tracking + Space Mono       |
-| **Vintage Parchment**  | `#f4ebd0`     | `#ebdcb9`, sepia, doble aro de bronce   | Merriweather + Courier Prime          |
-| **Obsidian & Gold**    | `#09090b`     | `#121214`, doradas, versalitas anchas   | Cinzel 700 con kerning amplio         |
-
-Un solo objeto `PosterTheme` alimenta **a la vez**:
-
-- la configuración de d3-celestial (`background.fill`, `constellations.lineStyle.stroke`,
-  `stars.style`, `lines.graticule.stroke`, `mw.style.fill`…), aplicada con
-  `Celestial.apply()` → repintado inmediato, **sin recargar los GeoJSON** ni recrear el canvas;
-- los colores y la tipografía del lienzo de composición, usados igual en la vista previa y en el
-  PNG/PDF exportados.
-
-Cada plantilla declara `fonts.title|subtitle|meta` (familia, peso, cursiva y *tracking*), que
-generan tanto la cadena `font` del canvas como las peticiones de `document.fonts.load()`; las seis
-familias se precargan en `index.html` y el exportador espera a `ensurePosterFonts(theme)`.
-
-El selector (`ThemeSelector`) muestra una muestra circular bicolor (papel + disco de cielo con
-estrellas) por plantilla, con anillo y *checkmark* en la activa.
-
-→ `src/lib/celestialConfig.ts`, `src/components/ThemeSelector.tsx`, `src/lib/posterRender.ts`
-
-### 6. Datos desacoplados del motor
-
-El estado del póster (fecha, hora, desfase UTC, coordenadas, textos) vive en
-`src/state/poster.ts`. Escribir en los campos **no** redibuja el cielo en cada tecla: el
-desencadenante astronómico (`dateStr|timeStr|offset|lat|lon`) está normalizado y con *debounce*
-de 400 ms.
-
-### 7. Búsqueda de lugares
-
-- `Nominatim` (OpenStreetMap) como proveedor principal, con **Photon** como respaldo automático.
-- *Debounce* de 450 ms, mínimo de 3 caracteres, `AbortController`, *timeout* de 12 s y caché en
-  memoria de las últimas 20 consultas, para respetar la política de uso de ambos servicios.
-
-→ `src/lib/nominatim.ts`, `src/hooks/useCitySearch.ts`
-
----
-
-## Estructura
-
 ```
-scripts/copy-vendor.mjs      # copia d3-celestial + manifiesto a public/vendor
-public/vendor/celestial/     # generado: scripts UMD + GeoJSON (no editar a mano)
 src/
-  components/                # panel de control, secciones, escenario del póster, UI
-  hooks/                     # useCelestialMap, useCitySearch, useDebouncedValue
-  lib/                       # loader, config, ciclo de vida, tiempo, coordenadas,
-                             # geocoder, layout/render/export del póster, tipos
-  state/poster.ts            # estado + acciones del formulario
-  App.tsx  main.tsx  index.css
+├─ lib/
+│  ├─ celestialConfig.ts   # agregador: proyecciones, geometría, estilo y config de d3
+│  ├─ themes.ts            # presets, tipografías, overrides de color y resolveTheme()
+│  ├─ fonts.ts             # fontSpec/fontStack/ensurePosterFonts
+│  ├─ timezone.ts          # zona IANA + desfase UTC por hora de pared (DST)
+│  ├─ time.ts              # fecha/hora de pared, formato es-ES, offset solar
+│  ├─ storage.ts           # localStorage + enlace compartible base64url
+│  ├─ canvasLimits.ts      # límites de lienzo por dispositivo (móviles)
+│  ├─ posterSizes.ts       # formatos de imprenta cm ↔ mm ↔ px
+│  ├─ posterLayout.ts      # geometría del póster a partir del ancho
+│  ├─ posterRender.ts      # composición en canvas (vista previa y exportación)
+│  ├─ exportPoster.ts      # PNG 2400×3200 (toBlob, liberación de canvas)
+│  ├─ exportPosterPdf.ts   # PDF 300 DPI, sangrado, marcas de corte y metadatos
+│  ├─ celestialMap.ts      # init/apply/resize/skyview y withCelestialResolution
+│  ├─ celestialLoader.ts   # carga de los scripts UMD fuera del bundler
+│  └─ nominatim.ts         # Nominatim + Photon con throttle y caché
+├─ state/poster.ts         # estado y acciones (lugar, tiempo, tema, textos, tamaño)
+├─ hooks/                  # useCelestialMap, useThemeFonts, useCitySearch, …
+└─ components/             # panel de control, escenario, tamaño, colores, modal…
 ```
 
-## Consideraciones
+### El motor vive fuera del bundler
 
-- **Sin API keys**: se usan APIs públicas con límites de uso. Si tu despliegue recibe tráfico
-  real, apunta `Nominatim` a tu propia instancia o formaliza un acuerdo de uso.
-- **Privacidad**: las coordenadas y la fecha nunca salen de tu equipo; solo la búsqueda de
-  ciudades consulta un servicio externo.
-- **Tipografías**: Cormorant Garamond e Inter se cargan desde Google Fonts; si no hay red, el
-  póster usa las fuentes del sistema sin romper la exportación.
+`celestial.min.js` es un IIFE clásico que asigna `this.Celestial` y usa la global `d3`
+en tiempo de evaluación; empaquetarlo rompe ambos supuestos. Por eso:
+
+1. `scripts/copy-vendor.mjs` copia los scripts UMD y los datos astronómicos de
+   `node_modules/d3-celestial` a `public/vendor/celestial` (con su LICENSE).
+2. `celestialLoader.ts` los inyecta en orden (`d3` → proyecciones → d3-celestial) con
+   timeout de 15 s y fallback a CDN.
+
+Hay **una sola instancia** del motor: su canvas vive en un slot oculto y el póster se
+compone con `drawImage` sobre un canvas de composición. La vista previa y la
+exportación usan exactamente la misma función `renderPoster()`.
+
+### Zona horaria
+
+`resolveTimeZone(lat, lon)` obtiene la zona IANA; `getUtcOffsetMinutesForWallTime()`
+itera `Intl.DateTimeFormat` dos veces hasta converger en el desfase válido para la hora
+de pared (resolviendo DST). El desfase manual del usuario (`offsetTouched`) siempre
+manda y «Estimar» lo devuelve al automático.
+
+### Composición y exportación
+
+- `computeMapGeometry()` renderiza el cielo a la resolución exacta del círculo del
+  póster (300 DPI); `withCelestialResolution()` aplica estilos, redimensiona el motor
+  y **restaura el preview en `finally`** aunque falle la captura.
+- PNG: `toBlob` (menos bloqueo que `toDataURL`), liberación del canvas al terminar y
+  nombre con la fecha.
+- PDF: se compone el contenido a tamaño de corte sobre una hoja ampliada con sangrado
+  opcional, se dibujan las marcas de corte y se embebe como JPEG q0.95. Metadatos de
+  título/autor/creador y fecha en el nombre del archivo.
+- En móviles, `checkCanvasCapacity()` bloquea formatos que superarían el área máxima
+  de canvas antes de reservar memoria y explica cómo continuar.
+
+## Personalización de colores
+
+En **El estilo → Colores personalizados** pueden ajustarse los colores del papel
+(fondo, titular, texto secundario, acento, marco y aro) y del cielo (fondo, estrellas,
+líneas, nombres, retícula y Vía Láctea). Los retoques se fusionan sobre el preset con
+`resolveTheme()` sin mutar la plantilla:
+
+- editar un color activa el estado «Personalizado»;
+- cada campo tiene un ↺ para volver al valor del preset;
+- **cambiar de plantilla reinicia los retoques** (el preset fija la estética base);
+- los colores viajan al motor (`Celestial.apply`) y a la exportación con el mismo objeto;
+- si el contraste titular/papel o estrella/cielo es bajo, se avisa (el póster se genera
+  igual).
+
+## Persistencia y enlace compartible
+
+- `savePoster()` guarda el estado completo (v2) en `localStorage` en cada cambio.
+- `loadInitialPoster()` prioriza `#p=<base64url>` del enlace, luego el borrador guardado
+  y por último el diseño por defecto.
+- **Compartir diseño** copia un enlace que abre la app con el póster ya montado. El
+  payload es UTF-8 seguro (títulos con tildes o emoji incluidos) y se descarta si no
+  valida el esquema.
+
+## Geocodificación
+
+- Nominatim como primera opción; si falla, Photon (OSM, sin API key).
+- Debounce de 450 ms, mínimo 3 caracteres, caché insensible a mayúsculas y cola de
+  peticiones con máximo ~1 req/s (política de uso de Nominatim).
+- Endpoints configurables por entorno:
+
+  ```bash
+  VITE_NOMINATIM_URL=https://nominatim.tudominio.org/search
+  VITE_PHOTON_URL=https://photon.komoot.io/api/
+  ```
+
+- Atribución visible en la interfaz: © OpenStreetMap contributors.
+
+## Tipografías autoalojadas
+
+| Familia            | Uso                           | Pesos                |
+| ------------------ | ----------------------------- | -------------------- |
+| Cinzel             | Titulares (Midnight/Obsidian) | 600, 700             |
+| Playfair Display   | Subtítulos                    | 500, 500 italic      |
+| Inter              | UI, etiquetas, metas          | 400, 500, 600        |
+| Space Mono         | Meta (Monochrome)             | 400                  |
+| Merriweather       | Título/subtítulo (Parchment)  | 400, 700, 400 italic |
+| Courier Prime      | Meta (Parchment)              | 400                  |
+| Cormorant Garamond | Títulos de la UI              | 600                  |
+
+Solo se carga el subset latino. `ensurePosterFonts()` espera a las familias del tema
+activo (`Promise.allSettled` + `document.fonts.ready`) antes de rasterizar; si una
+fuente falla se usa el fallback de su categoría (`serif`/`sans`/`mono`) sin abortar.
+
+## Tests y CI
+
+```bash
+npm run test       # 60 tests: tiempo, coordenadas, formatos, layout, temas, TZ, storage
+npm run typecheck
+npm run lint
+npm run format:check
+npm run build
+```
+
+CI (`.github/workflows/ci.yml`) ejecuta lo anterior en cada push a `main` y en cada PR,
+con la versión de Node fijada en `.nvmrc`.
+
+## Despliegue
+
+El sitio es estático: `npm run build` deja `dist/` listo para GitHub Pages, Netlify,
+Vercel o cualquier CDN. El `base` de Vite es `/KeiStars/`; si se publica en la raíz,
+cambia `base` en `vite.config.ts`. Para geocodificar con más tráfico, apunta las
+variables `VITE_NOMINATIM_URL`/`VITE_PHOTON_URL` a una instancia propia o a un proxy.
+
+## Limitaciones conocidas
+
+- **La vista previa y el PNG mantienen la proporción 3:4 de diseño** (1200×1600 y
+  2400×3200), con independencia del formato de imprenta elegido. El PDF sí usa la
+  proporción real del papel. Es una decisión de producto, no un bug de render.
+- En formato 50×70 a DPR 1, `computeMapGeometry()` topa el canvas del motor en 4096 px;
+  el cielo se reescala ~4 % en la composición final (imperceptible a 300 DPI, pero
+  documentado).
+- El PDF embebe una imagen JPEG: no hay texto vectorial ni seleccionable.
+- jsPDF no soporta CMYK: el PDF es RGB. Si la imprenta lo exige, debe convertirlo.
+- En iOS/Android los formatos por encima del área límite de canvas se bloquean con un
+  mensaje; usa un ordenador para 50×70.
+- La búsqueda depende de servicios públicos con límites de uso.
+
+## Licencia
+
+MIT (ver `LICENSE`). Datos astronómicos, d3-celestial, jsPDF y tipografías conservan sus
+licencias originales; ver `THIRD_PARTY_NOTICES.md`.

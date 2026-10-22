@@ -72,18 +72,39 @@ export interface CelestialBundle {
 let pending: Promise<CelestialBundle> | null = null;
 let resolved: CelestialBundle | null = null;
 
+/*
+ * Timeout de inyección: si un script remoto se cuelga, la app no queda
+ * atrapada eternamente en "Cargando el motor…": el fallo se informa y el
+ * fallback (o el reintentar del usuario) puede actuar.
+ */
+const SCRIPT_TIMEOUT_MS = 15_000;
+
 function injectScript(src: string): Promise<void> {
   return new Promise((resolve, reject) => {
     const script = document.createElement("script");
     script.src = src;
     script.async = false;
-    script.addEventListener("load", () => resolve(), { once: true });
+
+    let settled = false;
+    const finish = (error?: Error) => {
+      if (settled) return;
+      settled = true;
+      window.clearTimeout(timeoutId);
+      script.remove();
+      if (error) reject(error);
+      else resolve();
+    };
+
+    const timeoutId = window.setTimeout(() => {
+      finish(
+        new Error(`Tiempo agotado (15 s) al cargar ${src.split("/").pop()}. Revisa tu conexión.`),
+      );
+    }, SCRIPT_TIMEOUT_MS);
+
+    script.addEventListener("load", () => finish(), { once: true });
     script.addEventListener(
       "error",
-      () => {
-        script.remove();
-        reject(new Error(`No se pudo cargar el script ${src}`));
-      },
+      () => finish(new Error(`No se pudo cargar el script ${src}`)),
       { once: true },
     );
     document.head.appendChild(script);
@@ -96,7 +117,9 @@ async function loadScripts(source: CelestialSource): Promise<void> {
     await injectScript(`${source.base}${file}`);
   }
   if (!window.Celestial) {
-    throw new Error(`Los scripts de ${source.label} se cargaron pero window.Celestial sigue indefinido.`);
+    throw new Error(
+      `Los scripts de ${source.label} se cargaron pero window.Celestial sigue indefinido.`,
+    );
   }
 }
 
@@ -158,9 +181,4 @@ export function loadCelestial(): Promise<CelestialBundle> {
       });
   }
   return pending;
-}
-
-/** Origen activo tras la carga; `null` si aún no se ha resuelto. */
-export function getActiveSource(): CelestialSource | null {
-  return resolved?.source ?? null;
 }

@@ -1,8 +1,6 @@
-import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode } from "react";
-
-export function cx(...values: Array<string | false | null | undefined>): string {
-  return values.filter(Boolean).join(" ");
-}
+import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode, Ref } from "react";
+import { useRovingRadioGroup } from "../hooks/useRovingRadioGroup";
+import { cx } from "../lib/cx";
 
 export function Section({
   index,
@@ -52,7 +50,9 @@ export function Field({
       </label>
       {children}
       {error ? (
-        <p className="mt-1.5 text-xs leading-snug text-[#ff9b8a]">{error}</p>
+        <p role="alert" className="mt-1.5 text-xs leading-snug text-[#ff9b8a]">
+          {error}
+        </p>
       ) : hint ? (
         <p className="mt-1.5 text-xs leading-snug text-[#7f89a3]">{hint}</p>
       ) : null}
@@ -60,13 +60,19 @@ export function Field({
   );
 }
 
-export function TextInput({ invalid, ...props }: InputHTMLAttributes<HTMLInputElement> & { invalid?: boolean }) {
+export function TextInput({
+  invalid,
+  describedBy,
+  ...props
+}: InputHTMLAttributes<HTMLInputElement> & { invalid?: boolean; describedBy?: string }) {
   return (
     <input
       {...props}
+      aria-invalid={invalid ? true : undefined}
+      aria-describedby={describedBy}
       className={cx(
         "w-full rounded-lg border bg-white/[0.04] px-3 py-2.5 font-sans text-sm text-white outline-none transition",
-        "placeholder:text-white/25 focus:bg-white/[0.07]",
+        "placeholder:text-white/25 focus:bg-white/[0.07] focus-visible:ring-2 focus-visible:ring-[#e8c478]/65 focus-visible:ring-offset-1 focus-visible:ring-offset-[#0b0d14]",
         invalid
           ? "border-[#ff9b8a]/60 focus:border-[#ff9b8a]"
           : "border-white/12 focus:border-[#e8c478]/70",
@@ -87,24 +93,30 @@ export function Segmented<T extends string>({
   onChange: (value: T) => void;
   ariaLabel?: string;
 }) {
+  const { groupProps, itemProps } = useRovingRadioGroup(
+    options.length,
+    options.findIndex((o) => o.value === value),
+    (i) => onChange(options[i].value),
+    ariaLabel,
+  );
+
   return (
     <div
-      role="radiogroup"
-      aria-label={ariaLabel}
+      {...groupProps}
       className="grid gap-2"
       style={{ gridTemplateColumns: `repeat(${options.length}, minmax(0, 1fr))` }}
     >
-      {options.map((option) => {
+      {options.map((option, i) => {
         const selected = option.value === value;
         return (
           <button
             key={option.value}
             type="button"
-            role="radio"
             aria-checked={selected}
             onClick={() => onChange(option.value)}
+            {...itemProps(i)}
             className={cx(
-              "rounded-lg border px-3 py-2.5 font-sans text-[13px] font-medium transition",
+              "rounded-lg border px-3 py-2.5 font-sans text-[13px] font-medium transition focus-visible:outline-2 focus-visible:outline-[#e8c478] focus-visible:outline-offset-2",
               selected
                 ? "border-[#e8c478] bg-[#e8c478]/12 text-[#f6e7c6]"
                 : "border-white/12 bg-white/[0.03] text-[#9aa4bd] hover:border-white/25 hover:text-white",
@@ -136,7 +148,7 @@ export function Toggle({
       aria-checked={checked}
       onClick={() => onChange(!checked)}
       className={cx(
-        "flex w-full items-start gap-3 rounded-lg border px-3.5 py-3 text-left transition",
+        "flex w-full items-start gap-3 rounded-lg border px-3.5 py-3 text-left transition focus-visible:outline-2 focus-visible:outline-[#e8c478] focus-visible:outline-offset-2",
         checked
           ? "border-[#e8c478]/45 bg-[#e8c478]/8"
           : "border-white/12 bg-white/[0.03] hover:border-white/25",
@@ -157,7 +169,9 @@ export function Toggle({
       </span>
       <span className="min-w-0">
         <span className="block text-sm font-medium text-white">{label}</span>
-        {hint ? <span className="mt-0.5 block text-xs leading-snug text-[#9aa4bd]">{hint}</span> : null}
+        {hint ? (
+          <span className="mt-0.5 block text-xs leading-snug text-[#9aa4bd]">{hint}</span>
+        ) : null}
       </span>
     </button>
   );
@@ -166,13 +180,18 @@ export function Toggle({
 export function Button({
   variant = "primary",
   className,
+  ref,
   ...props
-}: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: "primary" | "quiet" }) {
+}: ButtonHTMLAttributes<HTMLButtonElement> & {
+  variant?: "primary" | "quiet";
+  ref?: Ref<HTMLButtonElement>;
+}) {
   return (
     <button
+      ref={ref}
       {...props}
       className={cx(
-        "inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 font-sans text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-55",
+        "inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 font-sans text-sm font-semibold transition focus-visible:outline-2 focus-visible:outline-[#e8c478] focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-55",
         variant === "primary"
           ? "bg-[#e8c478] text-[#0b0d14] hover:bg-[#f0d295]"
           : "border border-white/15 bg-white/[0.03] text-[#c9cee0] hover:border-white/30 hover:text-white",
@@ -182,9 +201,16 @@ export function Button({
   );
 }
 
-export function InlineNote({ tone = "info", children }: { tone?: "info" | "danger"; children: ReactNode }) {
+export function InlineNote({
+  tone = "info",
+  children,
+}: {
+  tone?: "info" | "danger";
+  children: ReactNode;
+}) {
   return (
     <p
+      role={tone === "danger" ? "alert" : "status"}
       className={cx(
         "rounded-lg border px-3 py-2 text-xs leading-relaxed",
         tone === "danger"

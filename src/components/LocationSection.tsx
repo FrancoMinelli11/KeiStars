@@ -1,6 +1,7 @@
 import { useCitySearch } from "../hooks/useCitySearch";
 import { parseCoordinate } from "../lib/coordinates";
 import type { PosterActions, PosterState } from "../state/poster";
+import { cx } from "../lib/cx";
 import { Field, InlineNote, Section, TextInput } from "./ui";
 
 export function LocationSection({
@@ -49,26 +50,40 @@ export function LocationSection({
       {search.error ? <InlineNote tone="danger">{search.error}</InlineNote> : null}
 
       {search.status === "success" && search.results.length === 0 ? (
-        <InlineNote>Sin resultados para «{search.query.trim()}». Prueba con otro nombre.</InlineNote>
+        <InlineNote>
+          Sin resultados para «{search.query.trim()}». Prueba con otro nombre.
+        </InlineNote>
       ) : null}
 
       {search.results.length > 0 ? (
-        <ul className="overflow-hidden rounded-lg border border-white/12">
-          {search.results.map((place) => (
-            <li key={place.id}>
-              <button
-                type="button"
-                onClick={() => {
-                  actions.selectPlace(place);
-                  search.clear();
-                }}
-                className="block w-full border-b border-white/8 px-3 py-2.5 text-left text-[13px] leading-snug text-[#c9cee0] transition last:border-b-0 hover:bg-white/[0.06] hover:text-white"
-              >
-                {place.label}
-              </button>
-            </li>
-          ))}
-        </ul>
+        <>
+          {search.stale ? (
+            <p className="text-[11px] italic text-[#7f89a3]">
+              Resultados de la búsqueda anterior; espera un instante por la nueva.
+            </p>
+          ) : null}
+          <ul
+            className={cx(
+              "overflow-hidden rounded-lg border border-white/12",
+              search.stale && "opacity-50",
+            )}
+          >
+            {search.results.map((place) => (
+              <li key={place.id}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    actions.selectPlace(place);
+                    search.clear();
+                  }}
+                  className="block w-full border-b border-white/8 px-3 py-2.5 text-left text-[13px] leading-snug text-[#c9cee0] transition last:border-b-0 hover:bg-white/[0.06] hover:text-white"
+                >
+                  {place.label}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </>
       ) : null}
 
       <div className="grid grid-cols-2 gap-4">
@@ -98,14 +113,39 @@ export function LocationSection({
             <span className="text-[#9aa4bd]">{poster.placeLabel}</span> ·{" "}
           </>
         ) : null}
-        Coordina en el póster:{" "}
-        <span className="text-[#9aa4bd]">{poster.coordinates || "—"}</span>
+        Coordina en el póster: <span className="text-[#9aa4bd]">{poster.coordinates || "—"}</span>
       </p>
 
-      <InlineNote>
-        Las búsquedas usan Nominatim (OpenStreetMap) con respaldo en Photon, con retardo de 450 ms y
-        un mínimo de 3 caracteres para respetar su política de uso.
-      </InlineNote>
+      <p className="text-xs leading-relaxed text-[#7f89a3]">
+        Búsqueda externa con{" "}
+        <a
+          href="https://nominatim.openstreetmap.org"
+          className="underline decoration-white/30 underline-offset-2 hover:text-white"
+          target="_blank"
+          rel="noreferrer"
+        >
+          Nominatim
+        </a>{" "}
+        y respaldo en{" "}
+        <a
+          href="https://photon.komoot.io"
+          className="underline decoration-white/30 underline-offset-2 hover:text-white"
+          target="_blank"
+          rel="noreferrer"
+        >
+          Photon
+        </a>
+        , datos ©{" "}
+        <a
+          href="https://www.openstreetmap.org/copyright"
+          className="underline decoration-white/30 underline-offset-2 hover:text-white"
+          target="_blank"
+          rel="noreferrer"
+        >
+          OpenStreetMap contributors
+        </a>
+        . Retardo de 450 ms + máx. 1 petición/s y mínimo de 3 caracteres para respetar su política.
+      </p>
     </Section>
   );
 }

@@ -1,55 +1,56 @@
-import { EXPORT_WIDTH, type PosterTheme } from "./celestialConfig";
+import { checkCanvasCapacity } from "./canvasLimits";
+import { ensurePosterFonts } from "./fonts";
+import { EXPORT_WIDTH } from "./posterSizes";
 import { getPosterLayout } from "./posterLayout";
-import { fontSpec, renderPoster, type PosterRenderInput } from "./posterRender";
+import { renderPoster, type PosterRenderInput } from "./posterRender";
 
 /**
- * Cuerpo (px) con el que se piden las familias a `document.fonts.load`.
- * Cargar una familia con un cuerpo la deja disponible para todos los tamaños.
+ * Compone el póster en alta resolución (2400×3200) y lo descarga como PNG.
+ *
+ * El mapa celeste se compone desde su propio canvas (renderizado ya a tamaño
+ * de exportación), por lo que no hay reescalado ni riesgo de "tainted canvas":
+ * d3-celestial solo dibuja formas/JSON, nunca imágenes cross-origin.
  */
-const FONT_LOAD_SIZE = 64;
+export async function exportPoster(input: ExportPosterInput): Promise<void> {
+  const layout = getPosterLayout(EXPORT_WIDTH);
 
-/**
- * Specs de las tres familias de la plantilla (título, subtítulo y meta).
- * Se construyen desde `theme.fonts` para que la exportación use exactamente
- * la tipografía del preset activo (nunca el fallback del sistema).
- */
-function fontSpecsForTheme(theme: PosterTheme): string[] {
-  return [
-    fontSpec(theme.fonts.title, FONT_LOAD_SIZE),
-    fontSpec(theme.fonts.subtitle, FONT_LOAD_SIZE),
-    fontSpec(theme.fonts.meta, FONT_LOAD_SIZE),
-  ];
-}
+  const capacity = checkCanvasCapacity(layout.width, layout.height);
+  if (!capacity.ok)
+    throw new Error(capacity.message ?? "El lienzo supera el límite del dispositivo.");
 
-/**
- * Espera a que las tipografías web de la plantilla estén disponibles para que
- * el texto del PNG/PDF sea idéntico al de la vista previa. Si fallan (sin red),
- * se usan las de respaldo de la pila del sistema sin abortar la exportación.
- */
-export async function ensurePosterFonts(theme: PosterTheme): Promise<void> {
-  if (!("fonts" in document)) return;
+  const canvas = document.createElement("canvas");
+  canvas.width = layout.width;
+  canvas.height = layout.height;
+
   try {
-    await Promise.all(fontSpecsForTheme(theme).map((spec) => document.fonts.load(spec)));
-    await document.fonts.ready;
-  } catch {
-    /* tipografías de respaldo */
+    const ctx = canvas.getContext("2d");
+    if (!ctx) {
+      throw new Error("Este navegador no permite crear un lienzo 2D para exportar.");
+    }
+
+    await ensurePosterFonts(input.theme);
+    renderPoster(ctx, { ...input, width: layout.width, height: layout.height });
+
+    // `toBlob` es asíncrono: menor bloqueo del hilo principal que toDataURL.
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png"));
+    if (!blob) {
+      throw new Error("No se pudo generar el PNG. Vuelve a intentarlo en unos segundos.");
+    }
+
+    downloadBlob(
+      blob,
+      input.fileName ?? buildPosterFileName(input.title, input.dateStr ?? "cielo"),
+    );
+  } finally {
+    // Libera de inmediato el buffer del lienzo (~196 MB en el export 2400×3200).
+    canvas.width = 0;
+    canvas.height = 0;
   }
 }
 
-export function slugify(text: string, fallback = "poster"): string {
-  const slug = text
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 48);
-  return slug || fallback;
-}
-
-export function buildPosterFileName(title: string, dateStr: string): string {
-  const date = dateStr.replace(/[^0-9]/g, "");
-  return `keistars-${slugify(title)}-${date || "cielo"}.png`;
+export interface ExportPosterInput extends Omit<PosterRenderInput, "width" | "height"> {
+  dateStr?: string;
+  fileName?: string;
 }
 
 function downloadBlob(blob: Blob, fileName: string): void {
@@ -65,35 +66,22 @@ function downloadBlob(blob: Blob, fileName: string): void {
   window.setTimeout(() => URL.revokeObjectURL(url), 4000);
 }
 
-export interface ExportPosterInput extends Omit<PosterRenderInput, "width"> {
-  fileName?: string;
+/* ------------------------------------------------------------------ */
+/* Nombres de archivo                                                  */
+/* ------------------------------------------------------------------ */
+
+export function slugify(text: string, fallback = "poster"): string {
+  const slug = text
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 48);
+  return slug || fallback;
 }
 
-/**
- * Compone el póster en alta resolución (2400×3200) y lo descarga como PNG.
- *
- * El mapa celeste se compone desde su propio canvas (renderizado ya a tamaño
- * de exportación), por lo que no hay reescalado ni riesgo de "tainted canvas":
- * d3-celestial solo dibuja formas/JSON, nunca imágenes cross-origin.
- */
-export async function exportPoster(input: ExportPosterInput): Promise<void> {
-  const layout = getPosterLayout(EXPORT_WIDTH);
-  const canvas = document.createElement("canvas");
-  canvas.width = layout.width;
-  canvas.height = layout.height;
-
-  const ctx = canvas.getContext("2d");
-  if (!ctx) {
-    throw new Error("Este navegador no permite crear un lienzo 2D para exportar.");
-  }
-
-  await ensurePosterFonts(input.theme);
-  renderPoster(ctx, { ...input, width: EXPORT_WIDTH });
-
-  const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png"));
-  if (!blob) {
-    throw new Error("No se pudo generar el PNG. Vuelve a intentarlo en unos segundos.");
-  }
-
-  downloadBlob(blob, input.fileName ?? buildPosterFileName(input.title, "cielo"));
+export function buildPosterFileName(title: string, dateStr: string): string {
+  const date = dateStr.replace(/[^0-9]/g, "");
+  return `keistars-${slugify(title)}-${date || "cielo"}.png`;
 }

@@ -9,6 +9,8 @@ export interface CitySearchState {
   results: PlaceResult[];
   status: CitySearchStatus;
   error: string | null;
+  /** true mientras la consulta tecleada aún no corresponde a los resultados (debounce). */
+  stale: boolean;
   setQuery(value: string): void;
   clear(): void;
 }
@@ -20,12 +22,17 @@ const CACHE_LIMIT = 20;
 
 const cache = new Map<string, PlaceResult[]>();
 
+/** Clave de caché insensible a mayúsculas («Madrid» y «madrid» comparten). */
+function cacheKey(query: string): string {
+  return query.trim().toLowerCase();
+}
+
 function remember(query: string, results: PlaceResult[]): void {
   if (cache.size >= CACHE_LIMIT) {
     const oldest = cache.keys().next().value;
     if (oldest !== undefined) cache.delete(oldest);
   }
-  cache.set(query, results);
+  cache.set(cacheKey(query), results);
 }
 
 /**
@@ -52,7 +59,7 @@ export function useCitySearch(): CitySearchState {
       return;
     }
 
-    const cached = cache.get(normalized);
+    const cached = cache.get(cacheKey(normalized));
     if (cached) {
       setResults(cached);
       setStatus("success");
@@ -106,6 +113,8 @@ export function useCitySearch(): CitySearchState {
       results,
       status,
       error,
+      stale:
+        results.length > 0 && query.trim().toLowerCase() !== debouncedQuery.trim().toLowerCase(),
       setQuery,
       clear() {
         setQuery("");
@@ -114,6 +123,6 @@ export function useCitySearch(): CitySearchState {
         setError(null);
       },
     }),
-    [query, results, status, error],
+    [query, debouncedQuery, results, status, error],
   );
 }

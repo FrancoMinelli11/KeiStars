@@ -1,4 +1,5 @@
-import type { PosterTheme, PosterThemeFont } from "./celestialConfig";
+import { fontSpec } from "./fonts";
+import type { PosterTheme, PosterThemeFont } from "./themes";
 import { getPosterLayout, type PosterLayout } from "./posterLayout";
 
 export interface PosterRenderInput {
@@ -23,17 +24,12 @@ export interface PosterRenderInput {
   placeholderLabel: string;
 }
 
-const SERIF_FALLBACK = 'Georgia, "Times New Roman", serif';
-const SANS_FALLBACK = 'system-ui, "Helvetica Neue", Arial, sans-serif';
-
-/** Cadena `font` del canvas para una tipografía de plantilla. */
-export function fontSpec(font: PosterThemeFont, size: number, serif = true): string {
-  const fallback = serif ? SERIF_FALLBACK : SANS_FALLBACK;
-  return `${font.italic ? "italic " : ""}${font.weight} ${size}px "${font.family}", ${fallback}`;
-}
-
 /** Ancho ocupado por un texto con tracking manual entre caracteres. */
-function measureTracked(ctx: CanvasRenderingContext2D, text: string, tracking: number): number {
+export function measureTracked(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  tracking: number,
+): number {
   const chars = Array.from(text);
   if (chars.length === 0) return 0;
   const widths = chars.map((char) => ctx.measureText(char).width);
@@ -44,31 +40,96 @@ function tidy(text: string): string {
   return text.replace(/\s+/g, " ").trim();
 }
 
+/* ------------------------------------------------------------------ */
+/* Ajuste de titulares: encajar sin salirse del área de diseño         */
+/* ------------------------------------------------------------------ */
+
+export interface FittedText {
+  /** Texto definitivo (`…` si hubo que recortar). */
+  text: string;
+  /** Cuerpo final de la fuente. */
+  size: number;
+  /** Tracking final (escala proporcionalmente con el cuerpo). */
+  tracking: number;
+  /** true si se recortó con elipsis. */
+  clipped: boolean;
+}
+
+/** El texto nunca baja de aquí: es donde entra la elipsis. */
+const MIN_SIZE_RATIO = 0.5;
+const ELLIPSIS = "…";
+
 /**
- * Reduce el cuerpo hasta que el texto (con su tracking) quepa en `maxWidth`
- * (mín. 62 %). Devuelve el cuerpo definitivo y deja `ctx.font` ajustado.
+ * Encaja un texto de una línea en `maxWidth`:
+ *
+ * 1. Reduce el cuerpo (hasta `MIN_SIZE_RATIO` del original) **y a la vez**
+ *    escala el tracking de forma proporcional al cuerpo — así el titular
+ *    demasiado ancho encoge homogéneamente en vez de expulsar al aire.
+ * 2. Si aún no cabe al mínimo, recorta con elipsis por búsqueda binaria
+ *    (el texto jamás se sale del área, pase lo que pase).
+ *
+ * Deja `ctx.font` ajustado al cuerpo final para dibujar inmediatamente.
  */
-function fitFont(
+export function fitTrackedText(
   ctx: CanvasRenderingContext2D,
   text: string,
   font: PosterThemeFont,
-  serif: boolean,
   size: number,
   maxWidth: number,
-  tracking: number,
-): number {
+  baseTracking: number,
+): FittedText {
+  const min = Math.max(8, size * MIN_SIZE_RATIO);
   let current = size;
-  ctx.font = fontSpec(font, current, serif);
-  const min = size * 0.62;
-  while (measureTracked(ctx, text, tracking) > maxWidth && current > min) {
-    current -= Math.max(1, size * 0.03);
-    ctx.font = fontSpec(font, current, serif);
+  let tracking = baseTracking * (current / size);
+  ctx.font = fontSpec(font, current);
+  let width = measureTracked(ctx, text, tracking);
+
+  while (width > maxWidth && current > min) {
+    current = Math.max(min, current - Math.max(1, size * 0.025));
+    tracking = baseTracking * (current / size);
+    ctx.font = fontSpec(font, current);
+    width = measureTracked(ctx, text, tracking);
   }
-  return current;
+
+  if (width <= maxWidth) {
+    return { text, size: current, tracking, clipped: false };
+  }
+
+  // Al mínimo el texto sigue sin caber: elipsis binaria (prefijo más largo).
+  const fits = (candidate: string): boolean => measureTracked(ctx, candidate, tracking) <= maxWidth;
+  const chars = Array.from(text);
+  if (!fits(ELLIPSIS)) {
+    return { text: "", size: current, tracking, clipped: true };
+  }
+  const candidate = (count: number) => `${chars.slice(0, count).join("")}${ELLIPSIS}`;
+  let low = 0;
+  let high = chars.length;
+  let bestFit = ELLIPSIS;
+  while (low <= high) {
+    const mid = Math.floor((low + high) / 2);
+    if (fits(candidate(mid))) {
+      bestFit = candidate(mid);
+      low = mid + 1;
+    } else {
+      high = mid - 1;
+    }
+  }
+  return { text: bestFit, size: current, tracking, clipped: true };
 }
 
+/* ------------------------------------------------------------------ */
+/* Dibujo de texto                                                     */
+/* ------------------------------------------------------------------ */
+
 /** Dibuja centrado; con tracking > 0 reparte el kerning a mano (portable). */
-function drawText(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, tracking: number): void {
+function drawText(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  x: number,
+  y: number,
+  tracking: number,
+): void {
+  if (!text) return;
   if (tracking > 0) drawTracked(ctx, text, x, y, tracking);
   else drawCentered(ctx, text, x, y);
 }
@@ -80,7 +141,13 @@ function drawCentered(ctx: CanvasRenderingContext2D, text: string, x: number, y:
 }
 
 /** Texto centrado con espaciado manual entre caracteres (portable, sin `letterSpacing`). */
-function drawTracked(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, tracking: number): void {
+function drawTracked(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  x: number,
+  y: number,
+  tracking: number,
+): void {
   const chars = Array.from(text);
   const widths = chars.map((char) => ctx.measureText(char).width);
   const total = widths.reduce((sum, w) => sum + w, 0) + tracking * Math.max(0, chars.length - 1);
@@ -92,6 +159,10 @@ function drawTracked(ctx: CanvasRenderingContext2D, text: string, x: number, y: 
     cursor += widths[index] + tracking;
   });
 }
+
+/* ------------------------------------------------------------------ */
+/* Composición                                                         */
+/* ------------------------------------------------------------------ */
 
 /**
  * Aro decorativo alrededor del cielo. Las plantillas definen grosor (px de
@@ -121,7 +192,11 @@ function drawRing(ctx: CanvasRenderingContext2D, layout: PosterLayout, theme: Po
   ctx.restore();
 }
 
-function drawMap(ctx: CanvasRenderingContext2D, input: PosterRenderInput, layout: PosterLayout): void {
+function drawMap(
+  ctx: CanvasRenderingContext2D,
+  input: PosterRenderInput,
+  layout: PosterLayout,
+): void {
   const { circle } = layout;
 
   ctx.save();
@@ -160,7 +235,7 @@ function drawMap(ctx: CanvasRenderingContext2D, input: PosterRenderInput, layout
     ctx.stroke();
     ctx.setLineDash([]);
     ctx.fillStyle = input.theme.poster.muted;
-    ctx.font = fontSpec(input.theme.fonts.meta, layout.subtitle.size * 0.5, false);
+    ctx.font = fontSpec(input.theme.fonts.meta, layout.subtitle.size * 0.5);
     drawCentered(ctx, input.placeholderLabel, circle.cx, circle.cy + layout.subtitle.size * 0.18);
   }
 
@@ -171,7 +246,10 @@ function drawMap(ctx: CanvasRenderingContext2D, input: PosterRenderInput, layout
  * Pinta el póster completo: fondo, marcos, círculo celeste recortado y textos.
  * Es la misma función para la vista previa y para el PNG de alta resolución.
  */
-export function renderPoster(ctx: CanvasRenderingContext2D, input: PosterRenderInput): PosterLayout {
+export function renderPoster(
+  ctx: CanvasRenderingContext2D,
+  input: PosterRenderInput,
+): PosterLayout {
   const layout = getPosterLayout(input.width, input.height);
   const { theme } = input;
   const { width, height } = layout;
@@ -206,28 +284,35 @@ export function renderPoster(ctx: CanvasRenderingContext2D, input: PosterRenderI
   drawRing(ctx, layout, theme);
 
   const { fonts } = theme;
+
   const title = tidy(input.title);
   if (title) {
-    const titleTracking = (fonts.title.tracking ?? 0) * layout.unit;
+    const baseTracking = (fonts.title.tracking ?? 0) * layout.unit;
+    const fitted = fitTrackedText(
+      ctx,
+      title,
+      fonts.title,
+      layout.title.size,
+      layout.title.maxWidth,
+      baseTracking,
+    );
     ctx.fillStyle = theme.poster.text;
-    fitFont(ctx, title, fonts.title, true, layout.title.size, layout.title.maxWidth, titleTracking);
-    drawText(ctx, title, width / 2, layout.title.y, titleTracking);
+    drawText(ctx, fitted.text, width / 2, layout.title.y, fitted.tracking);
   }
 
   const subtitle = tidy(input.subtitle);
   if (subtitle) {
-    const subtitleTracking = (fonts.subtitle.tracking ?? 0) * layout.unit;
-    ctx.fillStyle = theme.poster.accent;
-    fitFont(
+    const baseTracking = (fonts.subtitle.tracking ?? 0) * layout.unit;
+    const fitted = fitTrackedText(
       ctx,
       subtitle,
       fonts.subtitle,
-      true,
       layout.subtitle.size,
       layout.subtitle.maxWidth,
-      subtitleTracking,
+      baseTracking,
     );
-    drawText(ctx, subtitle, width / 2, layout.subtitle.y, subtitleTracking);
+    ctx.fillStyle = theme.poster.accent;
+    drawText(ctx, fitted.text, width / 2, layout.subtitle.y, fitted.tracking);
   }
 
   // Filete de cierre
@@ -240,19 +325,20 @@ export function renderPoster(ctx: CanvasRenderingContext2D, input: PosterRenderI
   ctx.stroke();
   ctx.globalAlpha = 1;
 
-  const coordinates = tidy(input.coordinates);
+  // Se mide el texto tal cual se dibuja (mayúsculas cambian el ancho).
+  const coordinates = tidy(input.coordinates).toUpperCase();
   if (coordinates) {
-    ctx.fillStyle = theme.poster.muted;
-    fitFont(
+    const baseTracking = layout.coordinates.tracking;
+    const fitted = fitTrackedText(
       ctx,
       coordinates,
       fonts.meta,
-      false,
       layout.coordinates.size,
       layout.coordinates.maxWidth,
-      layout.coordinates.tracking,
+      baseTracking,
     );
-    drawTracked(ctx, coordinates.toUpperCase(), width / 2, layout.coordinates.y, layout.coordinates.tracking);
+    ctx.fillStyle = theme.poster.muted;
+    drawTracked(ctx, fitted.text, width / 2, layout.coordinates.y, fitted.tracking);
   }
 
   ctx.restore();

@@ -1,13 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { useDebouncedValue } from "./useDebouncedValue";
-import {
-  EXPORT_WIDTH,
-  THEMES,
-  computeMapGeometry,
-  type MapGeometry,
-  type PosterThemeId,
-  type ProjectionKey,
-} from "../lib/celestialConfig";
+import { computeMapGeometry, type MapGeometry, type ProjectionKey } from "../lib/celestialConfig";
+import { EXPORT_WIDTH } from "../lib/posterSizes";
 import {
   applyCelestialStyle,
   applySkyView,
@@ -17,19 +11,23 @@ import {
 import { circleDiameterFor } from "../lib/posterLayout";
 import { buildSkyDate } from "../lib/time";
 import type { SkyFlags } from "../state/poster";
+import type { PosterTheme } from "../lib/themes";
 
 export type CelestialStatus = "boot" | "ready" | "error";
 
 export interface CelestialMapParams {
   hostRef: RefObject<HTMLDivElement | null>;
   projection: ProjectionKey;
-  themeId: PosterThemeId;
+  /** Tema resuelto (preset + colores personalizados); identidad estable por render. */
+  theme: PosterTheme;
   flags: SkyFlags;
   dateStr: string;
   timeStr: string;
   utcOffsetMinutes: number;
   latitude: number;
   longitude: number;
+  /** Versión de tipografías listas: al cambiar se re-aplican los estilos de etiquetas. */
+  fontsVersion: number;
   /** Disparado tras cada repintado de d3-celestial. Debe ser estable. */
   onRedraw: () => void;
 }
@@ -50,7 +48,7 @@ function errorMessage(error: unknown): string {
  *
  * 1. `init` → carga los scripts, ejecuta `Celestial.display()` y enfoque inicial
  *    al cenit con `Celestial.skyview()`.
- * 2. `style` → `Celestial.apply()` al cambiar tema o visibilidad (sin recarga).
+ * 2. `style` → `Celestial.apply()` al cambiar tema/colores/visibilidad (sin recarga).
  * 3. `sky`   → `Celestial.skyview()` con debounce ante cambios de fecha/hora/lugar.
  *
  * El desmontaje (o el cambio de proyección) siempre pasa por
@@ -61,7 +59,6 @@ export function useCelestialMap(params: CelestialMapParams): CelestialMapResult 
   const [error, setError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
 
-  const theme = THEMES[params.themeId];
   const geometry = useMemo(
     () => computeMapGeometry(params.projection, circleDiameterFor(EXPORT_WIDTH)),
     [params.projection],
@@ -89,7 +86,7 @@ export function useCelestialMap(params: CelestialMapParams): CelestialMapResult 
         await initCelestial({
           host,
           geometry,
-          theme: THEMES[current.themeId],
+          theme: current.theme,
           flags: current.flags,
           projection: current.projection,
           latitude: current.latitude,
@@ -121,17 +118,19 @@ export function useCelestialMap(params: CelestialMapParams): CelestialMapResult 
     };
   }, [initKey, geometry]);
 
-  // Tema y toggles: repintado inmediato sin volver a descargar los GeoJSON.
+  // Tema, colores personalizados y toggles: repintado inmediato sin volver a
+  // descargar los GeoJSON. `fontsVersion` fuerza una segunda pasada cuando las
+  // tipografías del tema terminan de cargar (las etiquetas usan la real).
   useEffect(() => {
     if (status !== "ready") return;
     try {
-      applyCelestialStyle({ geometry, theme, flags: latest.current.flags });
+      applyCelestialStyle({ geometry, theme: latest.current.theme, flags: latest.current.flags });
       setError(null);
     } catch (caught) {
       setStatus("error");
       setError(errorMessage(caught));
     }
-  }, [status, theme, params.flags, geometry]);
+  }, [status, params.theme, params.flags, geometry, params.fontsVersion]);
 
   // Fecha / hora / lugar: desacoplados de la edición de los textos del póster.
   const astronomyKey = [

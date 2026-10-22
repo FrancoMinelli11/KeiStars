@@ -124,14 +124,19 @@ export async function withCelestialResolution<T>(
 ): Promise<T> {
   const api = requireCelestial();
 
-  api.apply({ ...buildCelestialStyle(target) });
-  api.resize(target.geometry.widthCss);
-
+  // `apply` y `resize` viven DENTRO del try: si el cambio de escala falla, el
+  // finally restablece el tamaño de pantallita y el estilo del preview.
   try {
+    api.apply({ ...buildCelestialStyle(target) });
+    api.resize(target.geometry.widthCss);
     return await capture();
   } finally {
-    api.apply({ ...buildCelestialStyle(preview) });
-    api.resize(preview.geometry.widthCss);
+    try {
+      api.apply({ ...buildCelestialStyle(preview) });
+      api.resize(preview.geometry.widthCss);
+    } catch {
+      /* restauración defensiva: el preview se repinta en el siguiente ciclo */
+    }
   }
 }
 
