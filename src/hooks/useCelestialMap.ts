@@ -44,11 +44,32 @@ function errorMessage(error: unknown): string {
 }
 
 /**
+ * Firma de los valores que consume `buildCelestialStyle`. El motor solo
+ * depende del cielo; usar la firma evita reaplicar el estilo cuando cambian
+ * los colores del papel (que ni siquiera llegan a d3-celestial).
+ */
+function skyStyleKey(sky: PosterTheme["sky"]): string {
+  return [
+    sky.bg,
+    sky.star,
+    sky.starColors,
+    sky.constellationLine,
+    sky.constellationLineOpacity,
+    sky.constellationName,
+    sky.graticule,
+    sky.graticuleOpacity,
+    sky.milkyWay,
+    sky.milkyWayOpacity,
+  ].join("|");
+}
+
+/**
  * Ciclo de vida del mapa celeste:
  *
  * 1. `init` → carga los scripts, ejecuta `Celestial.display()` y enfoque inicial
  *    al cenit con `Celestial.skyview()`.
- * 2. `style` → `Celestial.apply()` al cambiar tema/colores/visibilidad (sin recarga).
+ * 2. `style` → `Celestial.apply()` al cambiar tema, colores del cielo o
+ *    visibilidad (sin recarga).
  * 3. `sky`   → `Celestial.skyview()` con debounce ante cambios de fecha/hora/lugar.
  *
  * El desmontaje (o el cambio de proyección) siempre pasa por
@@ -58,6 +79,25 @@ export function useCelestialMap(params: CelestialMapParams): CelestialMapResult 
   const [status, setStatus] = useState<CelestialStatus>("boot");
   const [error, setError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
+
+  /* Espejo del error para limpiarlo sin llamar a `setError(null)` cuando ya
+     es null. Durante un arrastre continuo el árbol no queda ocioso, React no
+     aplica el bailout del setter y cada limpieza redundante programa un render
+     desde un efecto pasivo (origen del "Maximum update depth exceeded"). */
+  const errorRef = useRef<string | null>(null);
+
+  const clearError = useCallback(() => {
+    if (errorRef.current === null) return;
+    errorRef.current = null;
+    setError(null);
+  }, []);
+
+  const fail = useCallback((caught: unknown) => {
+    const message = errorMessage(caught);
+    errorRef.current = message;
+    setStatus("error");
+    setError(message);
+  }, []);
 
   const geometry = useMemo(
     () => computeMapGeometry(params.projection, circleDiameterFor(EXPORT_WIDTH)),
@@ -78,7 +118,7 @@ export function useCelestialMap(params: CelestialMapParams): CelestialMapResult 
 
     let cancelled = false;
     setStatus("boot");
-    setError(null);
+    clearError();
 
     void (async () => {
       const current = latest.current;
@@ -107,8 +147,7 @@ export function useCelestialMap(params: CelestialMapParams): CelestialMapResult 
         }
       } catch (caught) {
         if (cancelled) return;
-        setStatus("error");
-        setError(errorMessage(caught));
+        fail(caught);
       }
     })();
 
@@ -116,21 +155,23 @@ export function useCelestialMap(params: CelestialMapParams): CelestialMapResult 
       cancelled = true;
       destroyCelestial(latest.current.hostRef.current);
     };
-  }, [initKey, geometry]);
+  }, [initKey, geometry, clearError, fail]);
 
   // Tema, colores personalizados y toggles: repintado inmediato sin volver a
   // descargar los GeoJSON. `fontsVersion` fuerza una segunda pasada cuando las
   // tipografías del tema terminan de cargar (las etiquetas usan la real).
+  // Solo el cielo alimenta el motor: los colores del papel no lo reaplican.
+  const skyKey = skyStyleKey(params.theme.sky);
+
   useEffect(() => {
     if (status !== "ready") return;
     try {
       applyCelestialStyle({ geometry, theme: latest.current.theme, flags: latest.current.flags });
-      setError(null);
+      clearError();
     } catch (caught) {
-      setStatus("error");
-      setError(errorMessage(caught));
+      fail(caught);
     }
-  }, [status, params.theme, params.flags, geometry, params.fontsVersion]);
+  }, [status, skyKey, params.flags, geometry, params.fontsVersion, clearError, fail]);
 
   // Fecha / hora / lugar: desacoplados de la edición de los textos del póster.
   const astronomyKey = [
@@ -154,12 +195,11 @@ export function useCelestialMap(params: CelestialMapParams): CelestialMapResult 
         longitude: current.longitude,
         utcOffsetMinutes: current.utcOffsetMinutes,
       });
-      setError(null);
+      clearError();
     } catch (caught) {
-      setStatus("error");
-      setError(errorMessage(caught));
+      fail(caught);
     }
-  }, [status, debouncedAstronomyKey]);
+  }, [status, debouncedAstronomyKey, clearError, fail]);
 
   const retry = useCallback(() => setAttempt((value) => value + 1), []);
 

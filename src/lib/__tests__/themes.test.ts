@@ -80,6 +80,16 @@ describe("resolveTheme", () => {
     expect(THEMES.midnight.poster.bg).toBe("#0b132b");
   });
 
+  it("conserva la identidad de la mitad no retocada", () => {
+    const posterOnly = resolveTheme("midnight", { poster: { bg: "#112233" } });
+    expect(posterOnly.sky).toBe(THEMES.midnight.sky);
+    expect(posterOnly.fonts).toBe(THEMES.midnight.fonts);
+
+    const skyOnly = resolveTheme("midnight", { sky: { star: "#ff0000" } });
+    expect(skyOnly.poster).toBe(THEMES.midnight.poster);
+    expect(skyOnly.fonts).toBe(THEMES.midnight.fonts);
+  });
+
   it("hasColorOverrides distingue vacío de personalizado", () => {
     expect(hasColorOverrides(null)).toBe(false);
     expect(hasColorOverrides({})).toBe(false);
@@ -123,6 +133,27 @@ describe("withColorOverride", () => {
   it("ignora valores que no son #rrggbb", () => {
     const overrides = { poster: { bg: "#112233" } };
     expect(withColorOverride(overrides, "midnight", "poster", "bg", "red")).toBe(overrides);
+  });
+
+  it("devuelve la misma referencia si el color efectivo no cambia", () => {
+    const overrides = { poster: { bg: "#a1b2c3" } };
+    expect(withColorOverride(overrides, "midnight", "poster", "bg", "#a1b2c3")).toBe(overrides);
+    expect(withColorOverride(overrides, "midnight", "poster", "bg", "#A1B2C3")).toBe(overrides);
+
+    // Elegir el color del preset sin retoque previo tampoco crea estado.
+    expect(withColorOverride(null, "midnight", "poster", "bg", "#0b132b")).toBeNull();
+  });
+
+  it("conserva la referencia del grupo que no se toca", () => {
+    const sky = { star: "#dddddd" };
+    const overrides = { poster: { bg: "#112233" }, sky };
+    const next = withColorOverride(overrides, "midnight", "poster", "bg", "#445566");
+    expect(next?.sky).toBe(sky);
+
+    const poster = { bg: "#112233" };
+    const withPoster = { poster, sky: { star: "#dddddd" } };
+    const nextSky = withColorOverride(withPoster, "midnight", "sky", "star", "#eeeeee");
+    expect(nextSky?.poster).toBe(poster);
   });
 });
 

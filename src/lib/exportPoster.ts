@@ -28,7 +28,7 @@ export async function exportPoster(input: ExportPosterInput): Promise<void> {
       throw new Error("Este navegador no permite crear un lienzo 2D para exportar.");
     }
 
-    await ensurePosterFonts(input.theme);
+    await ensurePosterFonts(input.theme.fonts);
     renderPoster(ctx, { ...input, width: layout.width, height: layout.height });
 
     // `toBlob` es asíncrono: menor bloqueo del hilo principal que toDataURL.

@@ -81,7 +81,8 @@ export function PosterStage({
     [poster.theme, poster.themeOverrides],
   );
   // Las fuentes del tema deben estar antes del primer pintado estable.
-  const fontsVersion = useThemeFonts(theme);
+  // Se suscribe solo a `theme.fonts`: los colores no alteran la tipografía.
+  const fontsVersion = useThemeFonts(theme.fonts);
 
   const { status, error, geometry, retry } = useCelestialMap({
     hostRef,

@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import type { PosterActions, PosterState } from "../state/poster";
 import {
   hasColorOverrides,
@@ -5,6 +6,7 @@ import {
   type PosterColorPatch,
   type SkyColorPatch,
 } from "../lib/celestialConfig";
+import { useRafCallback } from "../hooks/useRafCallback";
 import { Button, InlineNote } from "./ui";
 import { cx } from "../lib/cx";
 
@@ -67,6 +69,7 @@ function ColorField({
   onReset: () => void;
 }) {
   const customized = value.toLowerCase() !== presetValue.toLowerCase();
+  const { schedule, flush } = useRafCallback(onChange);
 
   return (
     <div className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.03] px-2.5 py-2">
@@ -77,7 +80,8 @@ function ColorField({
         id={`color-${label}`}
         type="color"
         value={value}
-        onChange={(event) => onChange(event.target.value)}
+        onChange={(event) => schedule(event.target.value)}
+        onBlur={flush}
         aria-label={label}
         className="h-7 w-7 shrink-0 cursor-pointer rounded border border-white/20 bg-transparent p-0.5"
       />
@@ -116,8 +120,11 @@ export function ColorCustomizer({
   poster: PosterState;
   actions: PosterActions;
 }) {
-  const theme = resolveTheme(poster.theme, poster.themeOverrides);
-  const base = resolveTheme(poster.theme, null);
+  const theme = useMemo(
+    () => resolveTheme(poster.theme, poster.themeOverrides),
+    [poster.theme, poster.themeOverrides],
+  );
+  const base = useMemo(() => resolveTheme(poster.theme, null), [poster.theme]);
   const customized = hasColorOverrides(poster.themeOverrides);
 
   const ugly = {

@@ -221,10 +221,17 @@ export function createPosterActions(setPoster: PosterSetter): PosterActions {
       setPoster((prev) => ({ ...prev, theme: value, themeOverrides: null }));
     },
     setThemeColor(group, key, value) {
-      setPoster((prev) => ({
-        ...prev,
-        themeOverrides: withColorOverride(prev.themeOverrides, prev.theme, group, key, value),
-      }));
+      setPoster((prev) => {
+        const themeOverrides = withColorOverride(
+          prev.themeOverrides,
+          prev.theme,
+          group,
+          key,
+          value,
+        );
+        // Mismo retoque: no crear un estado nuevo ni re-renderizar.
+        return themeOverrides === prev.themeOverrides ? prev : { ...prev, themeOverrides };
+      });
     },
     resetThemeColors() {
       setPoster((prev) => ({ ...prev, themeOverrides: null }));

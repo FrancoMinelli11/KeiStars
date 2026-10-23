@@ -136,7 +136,7 @@ export async function exportPosterToPdf(input: ExportPdfInput): Promise<void> {
       throw new Error("Este navegador no permite crear un lienzo 2D para exportar.");
     }
 
-    await ensurePosterFonts(input.theme);
+    await ensurePosterFonts(input.theme.fonts);
 
     // La hoja completa se pinta del color del papel: la sangra es superficie
     // extendida del póster, no margen blanco.

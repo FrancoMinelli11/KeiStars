@@ -6,7 +6,7 @@
  * inyectados por Vite): sin peticiones a Google Fonts, funcionan sin red y la
  * referencia cruzada familia→fallback es la declarada por cada preset.
  */
-import type { FontCategory, PosterTheme, PosterThemeFont } from "./themes";
+import type { FontCategory, PosterThemeFont, PosterThemeFonts } from "./themes";
 
 /** Pila de respaldo por categoría tipográfica. */
 const FALLBACK_STACKS: Record<FontCategory, string> = {
@@ -36,11 +36,11 @@ export function fontSpec(font: PosterThemeFont, size: number): string {
 const FONT_LOAD_SIZE = 64;
 
 /** Specs `font` de las tres familias del tema (título, subtítulo y meta). */
-export function fontLoadSpecsForTheme(theme: PosterTheme): string[] {
+export function fontLoadSpecs(fonts: PosterThemeFonts): string[] {
   return [
-    fontSpec(theme.fonts.title, FONT_LOAD_SIZE),
-    fontSpec(theme.fonts.subtitle, FONT_LOAD_SIZE),
-    fontSpec(theme.fonts.meta, FONT_LOAD_SIZE),
+    fontSpec(fonts.title, FONT_LOAD_SIZE),
+    fontSpec(fonts.subtitle, FONT_LOAD_SIZE),
+    fontSpec(fonts.meta, FONT_LOAD_SIZE),
   ];
 }
 
@@ -52,10 +52,10 @@ export function fontLoadSpecsForTheme(theme: PosterTheme): string[] {
  * - Después, `document.fonts.ready` da margen a que cualquier carga pendiente
  *   aterrice, de modo que la exportación es idéntica a la vista previa.
  */
-export async function ensurePosterFonts(theme: PosterTheme): Promise<void> {
+export async function ensurePosterFonts(fonts: PosterThemeFonts): Promise<void> {
   if (!("fonts" in document)) return;
   try {
-    await Promise.allSettled(fontLoadSpecsForTheme(theme).map((spec) => document.fonts.load(spec)));
+    await Promise.allSettled(fontLoadSpecs(fonts).map((spec) => document.fonts.load(spec)));
     await document.fonts.ready;
   } catch {
     /* tipografías de respaldo: la exportación no se aborta por esto */

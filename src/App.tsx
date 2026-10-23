@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ControlPanel } from "./components/ControlPanel";
 import { PosterStage } from "./components/PosterStage";
 import { createPosterActions, type PosterState } from "./state/poster";
@@ -15,9 +15,29 @@ export default function App() {
   const [view, setView] = useState<AppView>("design");
   const [exporting, setExporting] = useState(false);
 
+  /* Persistencia diferida: un arrastre de color no debe serializar el diseño
+     en cada evento. `pagehide`/`visibilitychange` guardan el último valor
+     aunque el temporizador aún no haya corrido. */
+  const posterRef = useRef(poster);
+  posterRef.current = poster;
+
   useEffect(() => {
-    savePoster(poster);
+    const timer = window.setTimeout(() => savePoster(poster), 250);
+    return () => window.clearTimeout(timer);
   }, [poster]);
+
+  useEffect(() => {
+    const flush = () => savePoster(posterRef.current);
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "hidden") flush();
+    };
+    window.addEventListener("pagehide", flush);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => {
+      window.removeEventListener("pagehide", flush);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
+  }, []);
 
   const actions = useMemo(() => createPosterActions(setPoster), []);
   const onExportingChange = useCallback((busy: boolean) => setExporting(busy), []);

@@ -270,23 +270,38 @@ export function withColorOverride(
 ): ThemeOverrides | null {
   if (!isHexColor(value)) return overrides;
 
-  const poster: PosterColorPatch = { ...(overrides?.poster ?? {}) };
-  const sky: SkyColorPatch = { ...(overrides?.sky ?? {}) };
-  const target = (group === "poster" ? poster : sky) as unknown as Record<
-    string,
-    string | undefined
-  >;
   const presetValue = (THEMES[themeId][group] as unknown as Record<string, unknown>)[key];
+  const clearsPreset =
+    typeof presetValue === "string" && presetValue.toLowerCase() === value.toLowerCase();
+  const source = overrides?.[group] as Record<string, string | undefined> | undefined;
+  const current = source?.[key];
 
-  if (typeof presetValue === "string" && presetValue.toLowerCase() === value.toLowerCase()) {
+  /* Sin cambio efectivo: devolver la MISMA referencia y no asignar nada. Los
+     pickers nativos pueden emitir muchos eventos por arrastre; no deben
+     provocar renders. */
+  if (clearsPreset) {
+    if (current === undefined) return overrides;
+  } else if (current !== undefined && current.toLowerCase() === value.toLowerCase()) {
+    return overrides;
+  }
+
+  const target = { ...(source ?? {}) } as Record<string, string | undefined>;
+  if (clearsPreset) {
     delete target[key];
   } else {
     target[key] = value;
   }
 
+  /* Se conserva la referencia del grupo que no se toca: cambiar solo un color
+     del papel no recrea el grupo del cielo. */
   const next: ThemeOverrides = {};
-  if (Object.keys(poster).length > 0) next.poster = poster;
-  if (Object.keys(sky).length > 0) next.sky = sky;
+  if (group === "poster") {
+    if (Object.keys(target).length > 0) next.poster = target as PosterColorPatch;
+    if (overrides?.sky) next.sky = overrides.sky;
+  } else {
+    if (overrides?.poster) next.poster = overrides.poster;
+    if (Object.keys(target).length > 0) next.sky = target as SkyColorPatch;
+  }
   return hasColorOverrides(next) ? next : null;
 }
 
@@ -304,8 +319,10 @@ export function resolveTheme(
 
   return {
     ...base,
-    poster: { ...base.poster, ...overrides?.poster },
-    sky: { ...base.sky, ...overrides?.sky },
+    // Conserva la identidad de la mitad no retocada: evita recrear objetos
+    // que no cambiaron (el motor compara una firma de los valores del cielo).
+    poster: overrides?.poster ? { ...base.poster, ...overrides.poster } : base.poster,
+    sky: overrides?.sky ? { ...base.sky, ...overrides.sky } : base.sky,
   };
 }
 
